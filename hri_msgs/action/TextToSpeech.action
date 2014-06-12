@@ -1,0 +1,8 @@
+# Define the goal
+string sentence             # Sentence of text to be synthesised.
+---
+# Define the result
+bool success
+---
+# Define a feedback message
+int32 current_word_index    # Current word being spoken.

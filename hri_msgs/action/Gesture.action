@@ -1,0 +1,10 @@
+# Define the goal
+string type             # Type of gesture to be executed
+float32 duration        # Duration gesture for be performed for
+hri_msgs/UUID target   # The target to perform gesture toward
+---
+# Define the result
+bool success
+---
+# Define a feedback message
+float32 distance_to_target

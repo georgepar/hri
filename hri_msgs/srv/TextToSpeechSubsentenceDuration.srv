@@ -1,0 +1,5 @@
+string sentence				# Sentence text
+int32 start_word_index		# Start index of subsentence to find duration of.
+int32 end_word_index		# End index of subsentence to find duration of.
+---
+float32 duration			# Duration of subsentence (in seconds)

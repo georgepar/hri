@@ -1,0 +1,9 @@
+# Define the goal
+string type             # Type of facial expression to be executed
+float32 duration        # Duration the facial expression should be performed for
+float32 intensity       # Intensity of facial expression (from 0 - 1)
+---
+# Define the result
+bool success
+---
+# Define a feedback message

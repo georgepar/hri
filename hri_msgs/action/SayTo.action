@@ -1,0 +1,12 @@
+# Define the goal
+string text									# The text the robot will say
+hri_msgs/UUID audience_id 					# The obj_id of the audience the robot is speaking to
+hri_msgs/GestureGoal[] gestures		# A list of GestureAt goals the robot will perform while speaking
+int32[] gesture_indicies					# The indicies of words where Gesture goals should be started
+											# these correspond to the array of gestures above
+---
+# Define the result
+bool success								# Whether SayTo finished successfully
+int32 last_word_index						# The index of the last word spoken, in-case it was cancelled
+---
+# Define a feedback message
