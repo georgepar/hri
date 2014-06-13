@@ -7,15 +7,10 @@ import rospy
 from .entity import Entity
 import actionlib
 import threading
-from xml.etree.ElementTree import ElementTree
-import re
-import yaml
-
-
+from hri_api.util import RobotConfigParser, SayToParser, GestureDoesNotExistError, FacialExpressionDoesNotExistError
 
 
 class Robot(Entity):
-
 
     def __init__(self, config_file_path):
         Entity.__init__(self, 'robot')
@@ -26,9 +21,9 @@ class Robot(Entity):
         self.tts_duration_srv = rospy.ServiceProxy('tts_subsentence_duration', TextToSpeechSubsentenceDuration)
         self.wait_for_services(self.tts_duration_srv)
 
-        self.robot_type = Robot.load_robot_type(config_file_path)
-        self.gestures = Robot.load_gestures(config_file_path)
-        self.facial_expressions = Robot.load_facial_expressions(config_file_path)
+        self.robot_type = RobotConfigParser.load_robot_type(config_file_path)
+        self.gestures = RobotConfigParser.load_gestures(config_file_path)
+        self.facial_expressions = RobotConfigParser.load_facial_expressions(config_file_path)
         self.event = None
 
     def wait(self, period):
@@ -46,7 +41,7 @@ class Robot(Entity):
         if audience is not None and not isinstance(audience, Entity):
                 raise TypeError("say_to() parameter audience={0} is not an Entity".format(audience))
 
-        say_to_goal = SayToParser.parse(text, audience, self.tts_duration_srv)
+        say_to_goal = SayToParser.parse(text, audience, self.gestures, self.tts_duration_srv)
         self.say_to_client.send_goal(say_to_goal)
         self.say_to_client.wait_for_result()
 
@@ -114,25 +109,3 @@ class Robot(Entity):
 
     def base_link(self):
         return "torso"
-
-    @staticmethod
-    def load_robot_type(config_file_path):
-        with open(config_file_path, 'r') as file:
-            config = yaml.load(file)
-            robot_type = config['robot']['type']
-            return robot_type
-
-    @staticmethod
-    def load_gestures(config_file_path):
-        with open(config_file_path, 'r') as file:
-            config = yaml.load(file)
-            gestures = config['robot']['gestures']
-            return gestures
-
-    @staticmethod
-    def load_facial_expressions(config_file_path):
-        with open(config_file_path, 'r') as file:
-            config = yaml.load(file)
-            config = yaml.load(file)
-            facial_expressions = config['robot']['facial_expressions']
-            return facial_expressions

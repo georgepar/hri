@@ -1,4 +1,4 @@
 robot:
-	type: zeno
-	gestures: [wave, point, hands_on_hips, nod, shake_head]
-	facial_expressions: [smile, frown_mouth, frown_eyebrows]
+  type: zeno
+  gestures: [wave, point]
+  facial_expressions: [smile]
