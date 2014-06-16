@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 import roslib
 roslib.load_manifest('hri_api')
-from hri_msgs.msg import SayToAction, GestureAction, SayToGoal, GestureGoal, UUID, FacialExpressionGoal, GazeGoal
+from hri_msgs.msg import SayToAction, GestureAction, SayToGoal, GestureGoal, FacialExpressionGoal
 from hri_msgs.srv import TextToSpeechSubsentenceDuration
 import rospy
 from .entity import Entity
+from hri_api.entities import World
 import actionlib
 import threading
 from hri_api.util import RobotConfigParser, SayToParser, GestureDoesNotExistError, FacialExpressionDoesNotExistError
@@ -36,10 +37,13 @@ class Robot(Entity):
 
     def say_to(self, text, audience=None):
         if not isinstance(text, str):
-                raise TypeError("say_to() parameter text={0} is not a str".format(text))
+            raise TypeError("say_to() parameter text={0} is not a str".format(text))
 
         if audience is not None and not isinstance(audience, Entity):
-                raise TypeError("say_to() parameter audience={0} is not an Entity".format(audience))
+            raise TypeError("say_to() parameter audience={0} is not an Entity".format(audience))
+
+        if audience is not None:
+            World().add_to_world(audience)
 
         say_to_goal = SayToParser.parse(text, audience, self.gestures, self.tts_duration_srv)
         self.say_to_client.send_goal(say_to_goal)
@@ -49,6 +53,7 @@ class Robot(Entity):
         if isinstance(target, Entity):
             raise TypeError("gaze_at() parameter target={0} is not an Entity".format(target))
 
+        World().add_to_world(target)
         gaze_goal = GazeGoal()
         gaze_goal.target = target
 
@@ -73,6 +78,7 @@ class Robot(Entity):
         gesture_goal.duration = duration
 
         if target is not None:
+            World().add_to_world(target)
             gesture_goal.target = target
 
         self.gesture_client.send_goal(gesture_goal)
@@ -95,17 +101,17 @@ class Robot(Entity):
         self.facial_client.send_goal(fe_goal)
         self.facial_client.wait_for_result()
 
-    def do(self, *args):
-        for i, action in enumerate(args):
-            if not isinstance(action, (GestureGoal, GazeGoal, FacialExpressionGoal)):
-                raise TypeError("do() parameter args[{0}]={1} is not a FacialExpressionGoal, GazeGoal or GestureGoal".format(i, action))
-
-            if isinstance(action, GestureGoal):
-                self.gesture_client.send_goal(action)
-            elif isinstance(action, GazeGoal):
-                pass
-            elif isinstance(action, FacialExpressionGoal):
-                pass
+    # def do(self, *args):
+    #     for i, action in enumerate(args):
+    #         if not isinstance(action, (GestureGoal, GazeGoal, FacialExpressionGoal)):
+    #             raise TypeError("do() parameter args[{0}]={1} is not a FacialExpressionGoal, GazeGoal or GestureGoal".format(i, action))
+    #
+    #         if isinstance(action, GestureGoal):
+    #             self.gesture_client.send_goal(action)
+    #         # elif isinstance(action, GazeGoal):
+    #         #     pass
+    #         # elif isinstance(action, FacialExpressionGoal):
+    #         #     pass
 
     def base_link(self):
         return "torso"

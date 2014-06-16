@@ -47,6 +47,7 @@ class Query(object):
         self.callback = callback
         self.thread = None
         self.rate = rospy.Rate(10)
+        self.previous_results = []
 
     def subscribe(self, callback):
         self.callback = callback
@@ -110,15 +111,19 @@ class Query(object):
 
     def __run(self):
         while not rospy.is_shutdown():
-            results = self.to_list()
-            num_callback_args = len(inspect.getargspec(self.callback))
+            current_results = self.to_list()
 
-            if num_callback_args == 0:
-                raise TypeError('Query callback has 0 arguments, it should have 1')
-            elif num_callback_args > 1:
-                raise TypeError('Query callback more than 1 arguments, it should have 1')
+            if self.previous_results != current_results:
+                num_callback_args = len(inspect.getargspec(self.callback))
 
-            self.callback(results)
+                if num_callback_args == 0:
+                    raise TypeError('Query callback has 0 arguments, it should have 1')
+                elif num_callback_args > 1:
+                    raise TypeError('Query callback more than 1 arguments, it should have 1')
+
+                self.callback(current_results)
+
+            self.previous_results = current_results
             self.rate.sleep()
 
 

@@ -11,11 +11,28 @@ import actionlib
 import abc
 import math
 
+
 class Entity(AbstractEntity):
-    def __init__(self, entity_type, object_id = None):
+    def __init__(self, entity_type, entity_id, parent=None):
         self.tl = tf.TransformListener()
         self.entity_type = entity_type
-        self.entity_id = object_id
+        self.entity_id = entity_id
+        self.visible = True
+        self.parent = parent
+
+    def __eq__(self, other):
+        if self.entity_id == other.entity_id:
+            return True
+        return False
+
+    def is_visible(self):
+        return self.visible
+
+    def base_link(self):
+        if self.parent is None:
+            return self.entity_id
+        else:
+            return self.parent.base_link() + '_' + self.entity_id
 
     def translation_to(self, target):
         if not isinstance(target, AbstractEntity):

@@ -1,81 +1,134 @@
+#! /usr/bin/env python
 
-class World(object):
+import roslib; roslib.load_manifest('hri_api')
+import rospy
+from std_msgs.msg import UInt16MultiArray
+from hri_api.srv import ExecuteQuery, GazeID, GestureID, IsQueryable, TFID, ExecuteQueryResponse, GazeIDResponse, GestureIDResponse, TFIDResponse, IsQueryableResponse
+from hri_msgs.msg import EntityMsg, EntitiesMsg
+import threading
+from hri_api.entities import Entity
+from hri_api.query import Query
+from hri_api.query import is_callable
+from hri_api.util import Singleton
+
+
+class World():
+    __metaclass__ = Singleton
+
     def __init__(self):
-        rospy.init_node("environment", anonymous=True)
-        self.__objects = []
-        self.__deleted_objects = []
-        self.__obj_id_dict = {}
-        self.__people_sub = rospy.Subscriber("openni_tracker/users", UInt16MultiArray, self.__people_changed)
-        self.__get_tf_ids_service = rospy.Service('get_tf_ids_service', GetTfIds, self.__get_tf_ids)
-        self.__object_change_lock = threading.Lock() #Needed if you are subscribing to entities from multiple sources
+        rospy.init_node("world", anonymous= True)
+        self.gaze_tf_id_service = rospy.Service('gaze_tf_id_service', GazeID, self.gaze_tf_id)
+        self.gesture_tf_id_service = rospy.Service('gesture_tf_id_service', GestureID, self.gesture_tf_id)
+        self.tf_id_service = rospy.Service('tf_id_service', TFID, self.tf_id)
+        self.is_queryable_serivce = rospy.Service('is_queryable_serivce', IsQueryable, self.is_queryable)
+        self.execute_query_service = rospy.Service('execute_query_service', ExecuteQuery, self.execute_query)
 
-    cdef bool contains(self, Obj obj):
-        if obj in self.__objects:
-            return True
-        return False
+        self.entities = []
+        self.entity_update_lock = threading.Lock()
+        self.create_entity_callbacks = {}
+        self.uuid_lookup = {}
 
-    cdef Obj get_obj(self, int obj_id):
-        return self.__obj_id_dict[obj_id]
+    def subscribe_to_perception_topics(self):
+        if rospy.has_param('~/perception_topics'):
+            perception_topics = rospy.get_param('~/perception_topics')
 
-    def add_object(self, Obj obj, user_object = True):
-        obj_id = id(obj)
-        self.__obj_id_dict[obj_id] = obj
+            for topic in perception_topics:
+                rospy.Subscriber(topic, EntitiesMsg, self.update_entities)
+        else:
+            raise Exception("Parameter ~perception_topics doesn't exist")
 
-        if user_object:
-            self.__user_objects.append(obj)
+    def add_to_world(self, thing):
+        uuid = id(thing)
 
-        self.__objects.append(obj)
+        if isinstance(thing, Entity):
+            if uuid not in self.uuid_entity_lookup:
+                self.uuid_lookup[uuid] = thing
+                self.entities.append(thing)
+                rospy.logdebug("Added entity with uuid: %s", uuid)
+        elif isinstance(thing, Query):
+            if uuid not in self.uuid_query_lookup:
+                self.uuid_lookup[uuid] = thing
+                rospy.logdebug("Added query with uuid: %s", uuid)
+        else:
+            raise TypeError("add_to_world() parameter thing={0} is not a subclass of Entity or Query".format(thing))
 
-        rospy.loginfo("Adding object: %s", id(obj))
+    def add_create_entity_callback(self, entity_type, callback):
+        if not isinstance(entity_type, str):
+            raise TypeError("add_create_entity_callback() parameter entity_type={0} is not a str".format(entity_type))
 
-    def remove_object(self, Obj obj):
-        self.__objects.remove()
-        self.__deleted_objects.append(obj)
+        if not is_callable(callback):
+            raise TypeError("add_create_entity_callback() parameter callback={0} is not callable".format(callback))
 
-    # Callbacks
-    def __get_tf_ids(self, req):
-        obj = self.__get_obj_from_obj_id(int(req.obj_id))
-        tf_ids = obj.get_tf_ids()
-        return GetTfIdsResponse(tf_ids)
+        self.create_entity_callbacks[entity_type] = callback
 
-    def __people_changed(self, msg):
-        with self.__object_change_lock:
-            peoples_ids = msg.data
-            print "DATA: " + str(peoples_ids)
-            print "adding people"
+    def make_entity_from_entity_msg(self, entity_msg):
+        if not isinstance(entity_msg, EntityMsg):
+            raise TypeError("create_entity() parameter entity_msg={0} is not a subclass of EntityMsg".format(entity_msg))
 
-            # Add people
-            for person_id in peoples_ids:
-                print "object_id: " + str(person_id) + " type: " + str(type(person_id))
-                person_exists = False
-                objects = set(self.__objects) - set(self.__own_objects)
-                for obj in objects:
-                    if isinstance(obj, Person):
-                        if obj.person_id == person_id:
-                            person_exists = True
-                            break
+        callback = self.create_entity_callbacks[entity_msg]
+        return callback(entity_msg)
 
-                if not person_exists:
-                    # If object already exists in deleted entities
-                    matches = [p for p in self.__deleted_objects if isinstance(p, Person) and p.person_id == person_id]
+    def get_entity_from_uuid(self, uuid):
+        if not isinstance(uuid, int):
+            raise TypeError("get_entity_from_uuid() parameter uuid={0} is not a int".format(uuid))
 
-                    if len(matches) > 0:
-                        person = matches[0]
-                        self.__deleted_objects.remove(person)
-                        self.__objects.append(person)
-                    else:
-                        person = Person(person_id)
-                        self.add_object(person, own_object = False)
+        if uuid in self.uuid_lookup:
+            return self.uuid_lookup[uuid]
+        else:
+            raise IndexError("get_entity_from_uuid() parameter uuid={0} is not in self.uuid_lookup".format(uuid))
 
-            ''' Delete people '''
-            objects = set(self.__objects) - set(self.__own_objects)
-            for obj in objects:
-                person_exists = False
-                for person_id in peoples_ids:
-                    if isinstance(obj, Person):
-                        if obj.person_id == person_id:
-                            person_exists = True
-                            break
+    def gaze_tf_id(self, req):
+        obj = self.get_entity_from_uuid(int(req.uri))
+        tf_id = obj.say_to_gaze_tf_id()
+        return GazeIDResponse(tf_id)
 
-                if not person_exists:
-                    self.remove_object(obj)
+    def gesture_tf_id(self, req):
+        obj = self.get_entity_from_uuid(int(req.uri))
+        tf_id = obj.say_to_gesture_tf_id()
+        return GestureIDResponse(tf_id)
+
+    def tf_id(self, req):
+        obj = self.get_entity_from_uuid(int(req.uri))
+        tf_id = obj.tf_id()
+        return TFIDResponse(tf_id)
+
+    def is_queryable(self, req):
+        obj = self.get_entity_from_uuid(int(req.uri))
+        is_queryable = obj.is_queryable()
+        return IsQueryableResponse(is_queryable)
+
+    def execute_query(self, req):
+        obj = self.get_entity_from_uuid(int(req.uri))
+        uris = obj.execute_query()
+        return ExecuteQueryResponse(uris)
+
+    ''' Locked '''
+    def update_entities(self, msg):
+        with self.entity_update_lock:
+            if not isinstance(msg, EntitiesMsg):
+                raise TypeError("update_entities() parameter msg={0} is not an EntitiesMsg".format(msg))
+
+            # Create new entities
+            for entity_msg in msg.entities:
+                entity_exists = False
+
+                for entity_py in self.entities:
+                    if entity_msg.type == entity_py.type and entity_msg.id == entity_py.id:
+                        if not entity_py.is_visible():
+                            rospy.logdebug('Setting entity to visible: %s', entity_msg)
+                            entity_py.visible = True
+
+                        entity_exists = True
+                        break
+
+                if not entity_exists:
+                    rospy.logdebug('Creating entity: %s', entity_msg)
+                    new_entity = self.make_entity_from_entity_msg(entity_msg)
+                    self.add_to_world(new_entity)
+
+            # Set entities that have dissapeared out of view to invisible
+            for entity_py in self.entities:
+                for entity_msg in msg.entities:
+                    if entity_msg.type == entity_py.type and entity_msg.id == entity_py.id:
+                        entity_py.visible = False
+                        break
