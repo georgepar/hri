@@ -50,6 +50,7 @@ add_message_files(
    FILES
    EntityMsg.msg
    EntitiesMsg.msg
+   GoalList.msg
 )
 
 ## Generate services in the 'srv' folder

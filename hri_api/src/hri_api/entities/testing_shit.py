@@ -4,7 +4,8 @@ from .world import World
 from hri_api.query import Query
 
 world = World()
-zeno = Zeno()
+zeno = Robot()
+
 
 def closest_person_changed(results):
     person = results[0]
