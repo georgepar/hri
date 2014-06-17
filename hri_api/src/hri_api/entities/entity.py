@@ -13,12 +13,12 @@ import math
 
 
 class Entity(AbstractEntity):
-    def __init__(self, entity_type, entity_id, parent=None):
+    def __init__(self, entity_type, entity_id, parent):
         self.tl = tf.TransformListener()
         self.entity_type = entity_type
         self.entity_id = entity_id
-        self.visible = True
         self.parent = parent
+        self.visible = True
 
     def __eq__(self, other):
         if self.entity_id == other.entity_id:
@@ -28,18 +28,21 @@ class Entity(AbstractEntity):
     def is_visible(self):
         return self.visible
 
-    def base_link(self):
+    def default_tf_frame_id(self):
+        raise NotImplementedError("Please implement this method")
+
+    def tf_frame_id(self):
         if self.parent is None:
             return self.entity_id
         else:
-            return self.parent.base_link() + '_' + self.entity_id
+            return self.parent.tf_frame_id() + '_' + self.entity_id
 
     def translation_to(self, target):
         if not isinstance(target, AbstractEntity):
             raise TypeError("translation_to() parameter target={0} is not a subclass of AbstractEntity".format(target))
 
         try:
-            (trans, rot) = self.tl.lookupTransform(self.base_link(), target.base_link(), rospy.Time())
+            (trans, rot) = self.tl.lookupTransform(self.default_tf_frame_id(), target.default_tf_frame_id(), rospy.Time())
             point = Point(trans[0], trans[1], trans[2])
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             point = Point()
@@ -86,10 +89,6 @@ class Entity(AbstractEntity):
         origin = Point()
         other = self.translation_to(other_entity)
         return GeomMath.distance_between(origin, other)
-
-    def base_link(self):
-        """ Return the base_link of the entity """
-        raise NotImplementedError('Please implement this method')
 
     @staticmethod
     def wait_for_services(*services):

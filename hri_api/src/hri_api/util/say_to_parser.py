@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 import roslib
 roslib.load_manifest('hri_api')
-from hri_msgs.msg import SayToGoal, GestureGoal, UUID
-from hri_api.entities import Entity
+from hri_msgs.msg import SayToGoal, GestureGoal
 from hri_api.query import is_callable
 from .errors import GestureDoesNotExistError
 import xml.etree.ElementTree as ET

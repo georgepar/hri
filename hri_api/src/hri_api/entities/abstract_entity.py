@@ -30,8 +30,3 @@ class AbstractEntity(object):
     def distance_to(self, other_entity):
         """ Return the distance between 'self' and 'other_entity' """
         return
-
-    # @abc.abstractmethod
-    # def get_uuid(self):
-    #     """ Return the uuid for the entity """
-    #     return

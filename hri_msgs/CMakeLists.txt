@@ -48,8 +48,8 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
 add_message_files(
    FILES
-   Entity.msg
-   Entities.msg
+   EntityMsg.msg
+   EntitiesMsg.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -63,6 +63,7 @@ add_action_files(
    FILES
    FacialExpression.action
    Gesture.action
+   Gaze.action
    NavigateTo.action
    SayTo.action
    TextToSpeech.action

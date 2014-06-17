@@ -1,1 +1,1 @@
-hri_msgs/Entity[] entities
+hri_msgs/EntityMsg[] entities

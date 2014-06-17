@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import roslib
 roslib.load_manifest('hri_api')
-from hri_msgs.msg import SayToAction, GestureAction, SayToGoal, GestureGoal, FacialExpressionGoal
+from hri_msgs.msg import SayToAction, GestureAction, GestureGoal, FacialExpressionGoal, GazeGoal
 from hri_msgs.srv import TextToSpeechSubsentenceDuration
 import rospy
 from .entity import Entity
@@ -13,8 +13,8 @@ from hri_api.util import RobotConfigParser, SayToParser, GestureDoesNotExistErro
 
 class Robot(Entity):
 
-    def __init__(self, config_file_path):
-        Entity.__init__(self, 'robot')
+    def __init__(self, robot_type, robot_id, config_file):
+        Entity.__init__(self, robot_type, robot_id, None)
         self.say_to_client = actionlib.SimpleActionClient('say_to', SayToAction)
         self.gesture_client = actionlib.SimpleActionClient('gesture', GestureAction)
         self.wait_for_action_servers(self.say_to_client, self.gesture_client)
@@ -22,9 +22,9 @@ class Robot(Entity):
         self.tts_duration_srv = rospy.ServiceProxy('tts_subsentence_duration', TextToSpeechSubsentenceDuration)
         self.wait_for_services(self.tts_duration_srv)
 
-        self.robot_type = RobotConfigParser.load_robot_type(config_file_path)
-        self.gestures = RobotConfigParser.load_gestures(config_file_path)
-        self.facial_expressions = RobotConfigParser.load_facial_expressions(config_file_path)
+        self.robot_type = RobotConfigParser.load_robot_type(config_file)
+        self.gestures = RobotConfigParser.load_gestures(config_file)
+        self.facial_expressions = RobotConfigParser.load_facial_expressions(config_file)
         self.event = None
 
     def wait(self, period):
@@ -34,6 +34,12 @@ class Robot(Entity):
     def cancel_wait(self):
         if self.event is not None:
             self.event.set()
+
+    def default_tf_frame_id(self):
+        raise NotImplementedError("Please implement this method")
+
+    def tf_frame_id(self):
+        raise NotImplementedError("Please implement this method")
 
     def say_to(self, text, audience=None):
         if not isinstance(text, str):
@@ -100,18 +106,3 @@ class Robot(Entity):
 
         self.facial_client.send_goal(fe_goal)
         self.facial_client.wait_for_result()
-
-    # def do(self, *args):
-    #     for i, action in enumerate(args):
-    #         if not isinstance(action, (GestureGoal, GazeGoal, FacialExpressionGoal)):
-    #             raise TypeError("do() parameter args[{0}]={1} is not a FacialExpressionGoal, GazeGoal or GestureGoal".format(i, action))
-    #
-    #         if isinstance(action, GestureGoal):
-    #             self.gesture_client.send_goal(action)
-    #         # elif isinstance(action, GazeGoal):
-    #         #     pass
-    #         # elif isinstance(action, FacialExpressionGoal):
-    #         #     pass
-
-    def base_link(self):
-        return "torso"

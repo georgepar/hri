@@ -3,7 +3,7 @@
 import roslib; roslib.load_manifest('hri_api')
 import rospy
 from std_msgs.msg import UInt16MultiArray
-from hri_api.srv import ExecuteQuery, GazeID, GestureID, IsQueryable, TFID, ExecuteQueryResponse, GazeIDResponse, GestureIDResponse, TFIDResponse, IsQueryableResponse
+#from hri_api.srv import ExecuteQuery, GazeID, GestureID, IsQueryable, TFID, ExecuteQueryResponse, GazeIDResponse, GestureIDResponse, TFIDResponse, IsQueryableResponse
 from hri_msgs.msg import EntityMsg, EntitiesMsg
 import threading
 from hri_api.entities import Entity

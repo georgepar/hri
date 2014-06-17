@@ -24,7 +24,6 @@ class RobotConfigParser(object):
     def load_facial_expressions(config_file_path):
         with open(config_file_path, 'r') as file:
             config = yaml.load(file)
-            config = yaml.load(file)
             facial_expressions = config['robot']['facial_expressions']
             return facial_expressions
 

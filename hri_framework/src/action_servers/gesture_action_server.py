@@ -5,43 +5,24 @@ import rospy
 from actionlib import ActionServer, SimpleActionServer
 import threading
 import abc
-from hri_framework.msg import GestureAction
-from hri_framework.action_servers import TfFrame
-from hri_framework.action_servers import RobotParams
-from hri_framework.msg import GestureActionGoal
+from hri_msgs.msg import GestureAction
+from hri_msgs.msg import GestureActionGoal
 
-#TODO: Thank grob
 
 class GestureActionServer():
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
-        self.gestures = {}
-
-        # since the internal_goal/preempt_callbacks are invoked from the
-        # ActionServer while holding the self.action_server.lock
-        # self.lock must always be locked after the action server lock
-        # to avoid an inconsistent lock acquisition order
+        self.node_name = "gesture_action_server"
         self.goal_handle_lock = threading.RLock()
+        self.action_server = None
 
     def start_server(self):
-        print "start node"
-        rospy.init_node("gesture_action_server", anonymous=True)
-        print "node done"
-        self.robot_params = RobotParams()
-        print "params done"
+        rospy.init_node(self.node_name, anonymous=True)
+        self.action_server = ActionServer(self.node_name, GestureAction, self.__internal_goal_callback, self.__internal_preempt_callback, False)
 
-        self.action_server = ActionServer(self.robot_params.robot_id() + '_gesture', GestureAction, self.internal_goal_callback, self.internal_preempt_callback, False)
-
-    @abc.abstractmethod
-    def gesture_class_from_gesture_type(self, gesture_type):
-        """
-            Return a gesture class
-        """
-        return
-
-    def internal_goal_callback(self, goal_handle):
-        print "HANDLE ID: " + str(id(goal_handle))
+    def __internal_goal_callback(self, goal_handle):
+        rospy.loginfo("Gesture goal received: %s", str(id(goal_handle)))
 
         with self.goal_handle_lock:
             new_goal = goal_handle.get_goal()
@@ -51,6 +32,7 @@ class GestureActionServer():
                 self.set_accepted(goal_handle)
 
                 gesture_class = self.gesture_class_from_gesture_type(new_goal.gesture_type)
+                gesture_class
 
                 if gesture_class is None:
                     self.set_aborted(goal_handle)
@@ -79,7 +61,7 @@ class GestureActionServer():
 
         #self.execute_condition.release()
 
-    def internal_preempt_callback(self, goal_handle):
+    def __internal_preempt_callback(self, goal_handle):
         print "HANDLE ID: " + str(id(goal_handle))
         with self.goal_handle_lock:
             gesture = self.gestures[goal_handle.get_goal_id().id]
@@ -109,8 +91,6 @@ class GestureActionServer():
             rospy.loginfo("Accepting a new goal");
             goal_handle.set_accepted("This goal has been accepted by the simple action server") #set the status of the current goal to be active
 
-    ## @brief Sets the status of the active goal to succeeded
-    ## @param  result An optional result to send back to any clients of the goal
     def set_succeeded(self, goal_handle, result=None, text=""):
       with self.goal_handle_lock:
           if not result:
