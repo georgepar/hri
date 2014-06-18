@@ -4,6 +4,7 @@ roslib.load_manifest('hri_api')
 from .entity import Entity
 from hri_msgs.msg import EntityMsg
 
+
 #World().add_create_entity_callback(Person.create_person)
 class Person(Entity):
     def __init__(self, entity_type, entity_id):
@@ -38,7 +39,7 @@ class Person(Entity):
         return self.head.tf_frame_id()
 
     def default_tf_frame_id(self):
-        return self.head.tf_frame_id()
+        return self.torso.tf_frame_id()
 
 
 class Head(Entity):

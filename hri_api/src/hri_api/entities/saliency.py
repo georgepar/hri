@@ -2,14 +2,12 @@
 import roslib
 roslib.load_manifest('hri_api')
 from .entity import Entity
-from hri_api.entities import World
 from hri_msgs.msg import EntityMsg
 
 
 class Saliency(Entity):
     def __init__(self, entity_type, entity_id):
         Entity.__init__(self, entity_type, entity_id, None)
-        World().add_create_entity_callback(Saliency.create_saliency)
 
     @staticmethod
     def create_saliency(entity_msg):
@@ -23,6 +21,9 @@ class Saliency(Entity):
 
     def say_to_gesture_tf_id(self):
         return self.base_link()
+
+    def default_tf_frame_id(self):
+        return self.tf_frame_id()
 
 
 

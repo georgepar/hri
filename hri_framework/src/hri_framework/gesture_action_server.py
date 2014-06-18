@@ -4,6 +4,8 @@ roslib.load_manifest('hri_framework')
 import rospy
 import abc
 from hri_msgs.msg import GestureAction, GestureActionFeedback
+from .multi_goal_action_server import MultiGoalActionServer
+
 
 class GestureActionServer():
     __metaclass__ = abc.ABCMeta
@@ -48,34 +50,6 @@ class GestureActionServer():
         """ Call this method when the gesture has finished """
         self.action_server.set_succeeded(goal_handle)
         rospy.loginfo("Gesture finished id: %s, name: %s",  goal_handle.get_goal_id().id, goal_handle.get_goal().type)
-
-def set_accepted(self, goal_handle):
-    with self.goal_handle_lock:
-        rospy.loginfo("Accepting a new goal: %s", goal_handle)
-        self.goals.append(goal_handle)
-        goal_handle.set_accepted("This goal has been accepted by the simple action server")
-        self.publish_active_goals()
-
-def set_succeeded(self, goal_handle, result=None, text=""):
-    with self.goal_handle_lock:
-        self.goals.remove(goal_handle)
-        if not result:
-            result = self.get_default_result()
-        goal_handle.set_succeeded(result, text)
-        self.publish_active_goals()
-
-def set_aborted(self, goal_handle, result=None, text=""):
-    with self.goal_handle_lock:
-        self.goals.remove(goal_handle)
-        if not result:
-            result = self.get_default_result()
-        goal_handle.set_aborted(result, text)
-        self.publish_active_goals()
-
-def publish_feedback(self, goal_handle, feedback):
-    with self.goal_handle_lock:
-        goal_handle.publish_feedback(feedback)
-
 
 
 

@@ -12,7 +12,6 @@ class TextToSpeechActionServer():
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
-        self.robot_params = None
         self.server = None
         self.feedback = None
         self.result = None

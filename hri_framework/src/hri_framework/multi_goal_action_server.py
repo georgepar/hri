@@ -24,6 +24,9 @@ class MultiGoalActionServer():
         self.active_goals_pub = rospy.Publisher(name + "/active_goals", GoalList)
         self.action_server = ActionServer(name, ActionSpec, self.internal_goal_callback, self.internal_preempt_callback, auto_start);
 
+    def start(self):
+        self.action_server.start()
+
     def register_goal_callback(self, goal_callback):
         self.goal_callback = goal_callback
 
@@ -39,7 +42,7 @@ class MultiGoalActionServer():
             self.active_goals_pub.publish(active_goals)
 
     def internal_goal_callback(self, goal_handle):
-        rospy.loginfo("Goal received: %s", str(id(goal_handle)))
+        rospy.loginfo("Goal received: %s", str(goal_handle.get_goal_id().id))
 
         with self.goal_handle_lock:
             if self.goal_callback:

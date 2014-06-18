@@ -68,6 +68,7 @@ add_action_files(
    NavigateTo.action
    SayTo.action
    TextToSpeech.action
+   Test.action
 )
 
 ## Generate added messages and services with any dependencies listed here
