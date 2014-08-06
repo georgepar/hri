@@ -31,7 +31,7 @@ from .portability import (is_callable, totally_ordered)
 
 class Query(object):
 
-    def __init__(self, iterable, func=None, callback=None):
+    def __init__(self, iterable, func=None):
 
         if not is_iterable(iterable):
             raise TypeError("Cannot construct Query from non-iterable {0}".format(str(type(iterable))[7: -2]))
@@ -39,22 +39,8 @@ class Query(object):
         if func is not None and not is_callable(func):
             raise TypeError('func must be callable')
 
-        if callback is not None and not is_callable(callback):
-            raise TypeError('callback must be callable')
-
         self.iterable = iterable
         self.func = func
-        self.callback = callback
-        self.thread = None
-        self.rate = rospy.Rate(10)
-        self.previous_results = []
-        self.stop_running = False
-
-    def subscribe(self, callback, auto_start=True):
-        self.callback = callback
-
-        if auto_start:
-            self.start()
 
     def __iter__(self):
         if self.func is not None:
@@ -72,14 +58,14 @@ class Query(object):
 
     def select(self, predicate):
         if not is_callable(predicate):
-            raise TypeError("where() parameter predicate={predicate} is not "
+            raise TypeError("select() parameter predicate={predicate} is not "
                                   "callable".format(predicate=repr(predicate)))
 
         return Query(self, func=lambda: itertools.ifilter(predicate, self))
 
     def order_by_ascending(self, key_selector=identity):
         if not is_callable(key_selector):
-            raise TypeError("order_by() parameter key_selector={key_selector} "
+            raise TypeError("order_by_ascending() parameter key_selector={key_selector} "
                     "is not callable".format(key_selector=repr(key_selector)))
 
         return OrderedQuery(self, -1, key_selector)
@@ -96,43 +82,12 @@ class Query(object):
         n = max(0, n)
         return Query(self, func=lambda: itertools.islice(self, n))
 
-    def to_list(self):
+    def execute(self):
         if isinstance(self.iterable, list):
             lst = self.iterable
             return lst
         lst = list(self)
         return lst
-
-    def start(self, rate=10):
-        self.stop_running = False
-        self.rate = rospy.Rate(rate)
-
-        if self.callback is None:
-            raise TypeError('Cannot start query because callback is not set')
-
-        self.thread = threading.Thread(target=self.__run)
-        self.thread.daemon = True
-        self.thread.start()
-
-    def stop(self):
-        self.stop_running = True
-
-    def __run(self):
-        while not rospy.is_shutdown() and not self.stop_running:
-            current_results = self.to_list()
-
-            if self.previous_results != current_results:
-                '''num_callback_args = len(inspect.getargspec(self.callback))
-
-                if num_callback_args == 0:
-                    raise TypeError('Query callback has 0 arguments, it should have 1')
-                elif num_callback_args > 1:
-                    raise TypeError('Query callback more than 1 arguments, it should have 1')'''
-
-                self.callback(current_results)
-
-            self.previous_results = current_results
-            self.rate.sleep()
 
 
 class OrderedQuery(Query):
@@ -158,7 +113,7 @@ class OrderedQuery(Query):
         super(OrderedQuery, self).__init__(iterable)
         self.funcs = [(order, func)]
 
-    def then_by(self, key_selector=identity):
+    def then_by_ascending(self, key_selector=identity):
         '''Introduce subsequent ordering to the sequence with an optional key.
 
         The returned sequence will be sorted in ascending order by the

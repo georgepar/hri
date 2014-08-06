@@ -1,4 +1,4 @@
-# Copyright (c) 2011 Robert Smallshire
+# Copyright (c) 2011-2014 Robert Smallshire, Jamie Diprose
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,7 @@ class TestSelect(unittest.TestCase):
 
     def test_select(self):
         a = range(0, 100)
-        b = Query(a).select(lambda x: x % 3 == 0).to_list()
+        b = Query(a).select(lambda x: x % 3 == 0).execute()
         c = list(range(0, 100, 3))
         self.assertEqual(b, c)
 
@@ -38,7 +38,7 @@ class TestSelect(unittest.TestCase):
 
     def test_select_infinite(self):
         a = infinite()
-        b = Query(a).select(lambda x: x % 5 == 0).take(3).to_list()
+        b = Query(a).select(lambda x: x % 5 == 0).take(3).execute()
         c = [0, 5, 10]
         self.assertEqual(b, c)
 
@@ -47,6 +47,6 @@ class TestSelect(unittest.TestCase):
         self.assertEqual(a.trace, [])
         b = Query(a).select(lambda x: x % 3 == 0)
         self.assertEqual(a.trace, [])
-        c = b.take(2).to_list()
+        c = b.take(2).execute()
         self.assertEqual(a.trace, [0, 1, 2, 3])
 

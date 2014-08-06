@@ -11,6 +11,13 @@ import threading
 from hri_api.util import RobotConfigParser, SayToParser, GestureDoesNotExistError, FacialExpressionDoesNotExistError
 
 
+class ActionHandle(object):
+    def __init__(self, action_server, action_id, goal):
+        self.action_server = action_server
+        self.action_id = action_id
+        self.goal = goal
+
+
 class Robot(Entity):
 
     def __init__(self, robot_type, robot_id, config_file):
@@ -24,14 +31,21 @@ class Robot(Entity):
 
         self.robot_type = RobotConfigParser.load_robot_type(config_file)
         self.gestures = RobotConfigParser.load_gestures(config_file)
-        self.facial_expressions = RobotConfigParser.load_facial_expressions(config_file)
         self.event = None
+        self.actions = []
 
-    def wait(self, period):
+    def wait_for_action(self, action):
+        self.action.action_server.wait_for_result()
+        self.actions.remove(action)
+
+    def cancel_action(self, action):
+        self.action.action_server.cancel_goal()
+
+    def wait_for_period(self, period):
         self.event = threading.Event()
         self.event.wait(timeout=period)
 
-    def cancel_wait(self):
+    def cancel_wait_for_period(self):
         if self.event is not None:
             self.event.set()
 
@@ -53,7 +67,10 @@ class Robot(Entity):
 
         say_to_goal = SayToParser.parse(text, audience, self.gestures, self.tts_duration_srv)
         self.say_to_client.send_goal(say_to_goal)
-        self.say_to_client.wait_for_result()
+
+        ah = ActionHandle(self.say_to_client, id(say_to_goal), say_to_goal)
+        self.actions.append(ah)
+        return ah
 
     def gaze_at(self, target):
         if isinstance(target, Entity):
@@ -66,7 +83,9 @@ class Robot(Entity):
         self.gaze_client.send_goal(gaze_goal)
         self.gaze_client.wait_for_result()
 
-    def gesture(self, type, duration, target=None):
+        return ActionHandle(self.gaze_client, id(gaze_goal), gaze_goal)
+
+    def gesture_at(self, type, duration, target=None):
         if not isinstance(type, str):
             raise TypeError("gesture() parameter type={0} is not a str".format(type))
 
@@ -88,21 +107,6 @@ class Robot(Entity):
             gesture_goal.target = target
 
         self.gesture_client.send_goal(gesture_goal)
-        self.gesture_client.wait_for_result()
-
-    def facial_expression(self, type, duration):
-        if not isinstance(type, str):
-            raise TypeError("gesture() parameter type={0} is not a str".format(type))
-
-        if not isinstance(duration, float):
-            raise TypeError("gesture() parameter duration={0} is not a float".format(duration))
-
-        if type not in self.gestures:
-            raise FacialExpressionDoesNotExistError("facial expression type={0} does not exist and was not loaded from {1}'s config file".format(type, self.robot_type))
-
-        fe_goal = FacialExpressionGoal()
-        fe_goal.type = type
-        fe_goal.duration = duration
-
-        self.facial_client.send_goal(fe_goal)
-        self.facial_client.wait_for_result()
+        ah = ActionHandle(self.gesture_client, id(gesture_goal), gesture_goal)
+        self.actions.append(ah)
+        return ah

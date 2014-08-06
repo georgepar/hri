@@ -1,4 +1,4 @@
-# Copyright (c) 2011 Robert Smallshire
+# Copyright (c) 2011-2014 Robert Smallshire, Jamie Diprose
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -43,19 +43,19 @@ class TestOrderBy(unittest.TestCase):
 
     def test_order_by(self):
         a = [27, 74, 18, 48, 57, 97, 76, 20, 91, 8, 80, 59, 20, 32, 58, 12, 74, 78, 4]
-        b = Query(a).order_by_ascending().to_list()
+        b = Query(a).order_by_ascending().execute()
         c = [4, 8, 12, 18, 20, 20, 27, 32, 48, 57, 58, 59, 74, 74, 76, 78, 80, 91, 97]
         self.assertEqual(b, c)
 
     def test_order_by2(self):
         a = [1, 9, 7, 2, 5, 4, 6, 3, 8, 10]
-        b = Query(a).order_by_ascending().to_list()
+        b = Query(a).order_by_ascending().execute()
         c = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         self.assertEqual(b, c)
 
     def test_order_by_key(self):
         a = ['Sort', 'words', 'by', 'length']
-        b = Query(a).order_by_ascending(len).to_list()
+        b = Query(a).order_by_ascending(len).execute()
         c = ['by', 'Sort', 'words', 'length']
         self.assertEqual(b, c)
 
@@ -85,7 +85,7 @@ class TestOrderBy(unittest.TestCase):
             pre_order_c_d = sgn(pre_index_c - pre_index_d)
             pre_order_e_f = sgn(pre_index_e - pre_index_f)
 
-            post_perm = Query(pre_perm).order_by_ascending().to_list()
+            post_perm = Query(pre_perm).order_by_ascending().execute()
 
             post_index_a = index_by_identity(post_perm, a)
             post_index_b = index_by_identity(post_perm, b)
@@ -104,30 +104,30 @@ class TestOrderBy(unittest.TestCase):
 
     def test_then_by(self):
         a = ['sort', 'these', 'words', 'by', 'length', 'and', 'then', 'lexicographically']
-        b = Query(a).order_by_ascending(len).then_by().to_list()
+        b = Query(a).order_by_ascending(len).then_by_ascending().execute()
         c = ['by', 'and', 'sort', 'then', 'these', 'words', 'length', 'lexicographically']
         self.assertEqual(b, c)
 
     def test_then_by_key(self):
         a = ['sort', 'using', 'third', 'letter', 'then', 'second']
-        b = Query(a).order_by_ascending(lambda x: x[2]).then_by(lambda y: y[1]).to_list()
+        b = Query(a).order_by_ascending(lambda x: x[2]).then_by_ascending(lambda y: y[1]).execute()
         c = ['second', 'then', 'third', 'using', 'sort', 'letter']
         self.assertEqual(b, c)
 
     def test_then_by_not_callable(self):
         a = ['sort', 'using', 'third', 'letter', 'then', 'second']
         b = Query(a).order_by_ascending(lambda x: x[2])
-        self.assertRaises(TypeError, lambda: b.then_by("not callable"))
+        self.assertRaises(TypeError, lambda: b.then_by_ascending("not callable"))
 
     def test_order_by_descending(self):
         a = [1, 9, 7, 2, 5, 4, 6, 3, 8, 10]
-        b = Query(a).order_by_descending().to_list()
+        b = Query(a).order_by_descending().execute()
         c = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
         self.assertEqual(b, c)
 
     def test_order_by_descending_key(self):
         a = ['Sort', 'words', 'by', 'length']
-        b = Query(a).order_by_descending(len).to_list()
+        b = Query(a).order_by_descending(len).execute()
         c = ['length', 'words', 'Sort', 'by']
         self.assertEqual(b, c)
 
@@ -137,13 +137,13 @@ class TestOrderBy(unittest.TestCase):
 
     def test_then_by_descending(self):
         a = ['sort', 'these', 'words', 'by', 'length', 'and', 'then', 'lexicographically']
-        b = Query(a).order_by_ascending(len).then_by_descending().to_list()
+        b = Query(a).order_by_ascending(len).then_by_descending().execute()
         c = ['by', 'and', 'then', 'sort', 'words', 'these', 'length', 'lexicographically']
         self.assertEqual(b, c)
 
     def test_then_by_descending_key(self):
         a = ['sort', 'using', 'third', 'letter', 'then', 'second']
-        b = Query(a).order_by_ascending(lambda x: x[2]).then_by_descending(lambda y: y[1]).to_list()
+        b = Query(a).order_by_ascending(lambda x: x[2]).then_by_descending(lambda y: y[1]).execute()
         c = ['second', 'then', 'using', 'third', 'sort', 'letter']
         self.assertEqual(b, c)
 

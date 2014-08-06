@@ -1,4 +1,4 @@
-# Copyright (c) 2011 Robert Smallshire
+# Copyright (c) 2011-2014 Robert Smallshire, Jamie Diprose
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -28,30 +28,30 @@ class TestTake(unittest.TestCase):
 
     def test_take_negative(self):
         a = ['a', 'b', 'c']
-        b = Query(a).take(-1).to_list()
+        b = Query(a).take(-1).execute()
         c = []
         self.assertEqual(b, c)
 
     def test_take_zero(self):
         a = ['a', 'b', 'c']
-        b = Query(a).take(0).to_list()
+        b = Query(a).take(0).execute()
         c = []
         self.assertEqual(b, c)
 
     def test_take_five(self):
         a = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
-        b = Query(a).take(5).to_list()
+        b = Query(a).take(5).execute()
         c = ['a', 'b', 'c', 'd', 'e']
         self.assertEqual(b, c)
 
     def test_take_too_many(self):
         a = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
-        b = Query(a).take(10).to_list()
+        b = Query(a).take(10).execute()
         c = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
         self.assertEqual(b, c)
 
     def test_take_from_infinite(self):
-        b = Query(infinite()).take(5).to_list()
+        b = Query(infinite()).take(5).execute()
         c = [0, 1, 2, 3, 4]
         self.assertEqual(b, c)
 

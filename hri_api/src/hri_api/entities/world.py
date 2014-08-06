@@ -37,20 +37,20 @@ class World():
         else:
             raise Exception("Parameter ~perception_topics doesn't exist")
 
-    def add_to_world(self, thing):
-        uuid = id(thing)
+    def add_to_world(self, entity):
+        uuid = id(entity)
 
-        if isinstance(thing, Entity):
+        if isinstance(entity, Entity):
             if uuid not in self.uuid_entity_lookup:
-                self.uuid_lookup[uuid] = thing
-                self.entities.append(thing)
+                self.uuid_lookup[uuid] = entity
+                self.entities.append(entity)
                 rospy.logdebug("Added entity with uuid: %s", uuid)
-        elif isinstance(thing, Query):
+        elif isinstance(entity, Query):
             if uuid not in self.uuid_query_lookup:
-                self.uuid_lookup[uuid] = thing
+                self.uuid_lookup[uuid] = entity
                 rospy.logdebug("Added query with uuid: %s", uuid)
         else:
-            raise TypeError("add_to_world() parameter thing={0} is not a subclass of Entity or Query".format(thing))
+            raise TypeError("add_to_world() parameter thing={0} is not a subclass of Entity or Query".format(entity))
 
     def add_create_entity_callback(self, entity_type, callback):
         if not isinstance(entity_type, str):
