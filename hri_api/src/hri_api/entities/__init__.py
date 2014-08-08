@@ -5,6 +5,7 @@
 # from .hri_api.src.hri_api.entities.robot import *
 
 from .abstract_entity import *
+from .hri_api.actions.action import *
 from .entity import *
 from .world import *
 from .robot import *
