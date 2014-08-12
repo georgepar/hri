@@ -34,8 +34,7 @@ import time
 import rospy
 from rospy import Header
 from actionlib_msgs.msg import *
-from action_client import ActionClient, CommState, get_name_of_constant
-
+from actionlib.action_client import ActionClient, CommState, get_name_of_constant
 
 class SimpleGoalState:
     PENDING = 0
@@ -134,7 +133,7 @@ class MultiGoalActionClient:
     ## @return True if the goal finished. False if the goal didn't finish within the allocated timeout
     def wait_for_result(self, goal_handle, timeout=rospy.Duration()):
         with self.action_handles_lock:
-            if self.is_tracking_goal(goal_handle):
+            if not self.is_tracking_goal(goal_handle):
                 rospy.logerr("Called wait_for_goal_to_finish when no goal exists")
                 return False
 
@@ -239,11 +238,11 @@ class MultiGoalActionClient:
     def _handle_transition(self, goal_handle):
         comm_state = goal_handle.get_comm_state()
 
-        error_msg = "Received comm state %s when in simple state %s with SimpleActionClient in NS %s" % \
-            (CommState.to_string(comm_state), SimpleGoalState.to_string(self.simple_state), rospy.resolve_name(self.action_client.ns))
-
         with self.action_handles_lock:
             action_handle = self.get_action_handle(goal_handle)
+
+            error_msg = "Received comm state %s when in simple state %s with SimpleActionClient in NS %s" % \
+            (CommState.to_string(comm_state), SimpleGoalState.to_string(action_handle.simple_state), rospy.resolve_name(self.action_client.ns))
 
             if comm_state == CommState.ACTIVE:
                 if action_handle.simple_state == SimpleGoalState.PENDING:
