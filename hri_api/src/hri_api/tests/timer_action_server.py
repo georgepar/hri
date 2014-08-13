@@ -32,10 +32,7 @@ class TimerActionServer(object):
         with self.timers_lock:
             goal_id = goal_handle.get_goal_id().id
             self.timers[goal_id].cancel()
-
-        result = TimerResult()
-        result.success = False
-        goal_handle.set_canceled(self, result=result, text="Timer cancelled")
+            self.action_server.set_preempted(goal_handle)
 
     def timer_stopped(self, goal_handle):
         print "TIMER STOPPED"
