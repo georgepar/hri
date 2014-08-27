@@ -55,6 +55,7 @@ class ActionHandle():
         self.feedback_cb = feedback_cb
         self.done_condition = threading.Condition()
         self.cleanup_start_time = None
+        self.duration_inactive = None
 
 
 class MultiGoalActionClient:
@@ -100,7 +101,7 @@ class MultiGoalActionClient:
 
                         finished_actions.append(action_handle)
 
-                finished_actions.sort(key=lambda action_handle: action_handle.goal_handle.duration_inactive.secs)
+                finished_actions.sort(key=lambda action_handle: action_handle.duration_inactive.secs)
                 to_delete = finished_actions[self.queue_size-1:]
 
                 for action_handle in to_delete:
@@ -313,7 +314,7 @@ class MultiGoalActionClient:
 
     def _handle_feedback(self, goal_handle, feedback):
         with self.action_handles_lock:
-            if self.is_tracking_goal(goal_handle):
+            if not self.is_tracking_goal(goal_handle):
                 rospy.logerr("Got a feedback callback on a goal handle that we're not tracking. %s vs %s" % \
                  (goal_handle.comm_state_machine.action_goal.goal_id.id,
                   goal_handle.comm_state_machine.action_goal.goal_id.id))

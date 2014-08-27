@@ -1,9 +1,9 @@
 # This action definition is used for unit tests for multi goal action client
 # Define the goal
-int32 duration
+float32 duration
 ---
 # Define the result
 bool success
 ---
 # Define a feedback message
-int32 current_time
+float32 current_time

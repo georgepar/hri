@@ -4,7 +4,7 @@ roslib.load_manifest('hri_framework')
 import rospy
 import abc
 from hri_msgs.msg import GestureAction, GestureActionFeedback
-from .multi_goal_action_server import MultiGoalActionServer
+from .hri_framework.multi_goal_action_server import MultiGoalActionServer
 
 
 class GestureActionServer():

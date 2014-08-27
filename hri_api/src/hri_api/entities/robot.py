@@ -110,8 +110,6 @@ class Robot(Entity):
         self.__add_action(action_handle)
         return action_handle
 
-        return ActionHandle(self.gaze_client, id(goal), goal)
-
     def gesture_at(self, type, duration, target=None):
         if not isinstance(type, str):
             raise TypeError("gesture() parameter type={0} is not a str".format(type))
@@ -135,7 +133,7 @@ class Robot(Entity):
             World().add_to_world(target)
             goal.target = target
 
-        self.gesture_client.send_goal(goal)
+        self.gesture_client.send_goal(goal)#, done_cb=self.__action_finished)
         action_handle = ActionHandle(self.gesture_client, self.gesture_client.gh.comm_state_machine.action_goal.goal_id)
         self.__add_action(action_handle)
         return action_handle

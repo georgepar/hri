@@ -1,0 +1,4 @@
+string entity_id
+---
+bool is_queryable
+hri_msgs/EntityMsg[] entities
