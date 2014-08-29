@@ -1,0 +1,8 @@
+# Define the goal
+string expression       # Type of facial expression to be executed
+string intensity        # Intensity of facial expression
+string speed            # Speed of facial expression
+float32 duration        # Duration the facial expression should be performed for
+---
+---
+# Define a feedback message

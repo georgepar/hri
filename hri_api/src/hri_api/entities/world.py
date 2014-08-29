@@ -4,131 +4,78 @@ import roslib; roslib.load_manifest('hri_api')
 import rospy
 from std_msgs.msg import UInt16MultiArray
 #from hri_api.srv import ExecuteQuery, GazeID, GestureID, IsQueryable, TFID, ExecuteQueryResponse, GazeIDResponse, GestureIDResponse, TFIDResponse, IsQueryableResponse
-from hri_msgs.msg import EntityMsg, EntitiesMsg
+from hri_msgs.msg import EntityMsg, EntityListMsg
 import threading
 from hri_api.entities import Entity
 from hri_api.query import Query
 from hri_api.query import is_callable
-from hri_api.util import Singleton
+from hri_api.util import Singleton, InitNode
+from hri_msgs.srv import TfFrame, TfFrameResponse, IfQueryableExecute, IfQueryableExecuteResponse
 
 
 class World():
     __metaclass__ = Singleton
 
     def __init__(self):
-        rospy.init_node("world", anonymous= True)
-        self.gaze_tf_id_service = rospy.Service('gaze_tf_id_service', GazeID, self.gaze_tf_id)
-        self.gesture_tf_id_service = rospy.Service('gesture_tf_id_service', GestureID, self.gesture_tf_id)
-        self.tf_id_service = rospy.Service('tf_id_service', TFID, self.tf_id)
-        self.is_queryable_serivce = rospy.Service('is_queryable_serivce', IsQueryable, self.is_queryable)
-        self.execute_query_service = rospy.Service('execute_query_service', ExecuteQuery, self.execute_query)
+        InitNode()
+        self.tf_frame_service = rospy.Service('tf_frame_service', TfFrame, self.tf_frame_service_callback)
+        self.if_queryable_execute_service = rospy.Service('if_queryable_execute', IfQueryableExecute, self.if_queryable_execute_callback)
 
         self.entities = []
-        self.entity_update_lock = threading.Lock()
-        self.create_entity_callbacks = {}
-        self.uuid_lookup = {}
+        self.entity_id_lookup = {}
 
-    def subscribe_to_perception_topics(self):
-        if rospy.has_param('~/perception_topics'):
-            perception_topics = rospy.get_param('~/perception_topics')
-
-            for topic in perception_topics:
-                rospy.Subscriber(topic, EntitiesMsg, self.update_entities)
-        else:
-            raise Exception("Parameter ~perception_topics doesn't exist")
+    def __iter__(self):
+        return iter(self.entities)
 
     def add_to_world(self, entity):
-        uuid = id(entity)
+        entity_id = entity.get_id()
 
         if isinstance(entity, Entity):
-            if uuid not in self.uuid_entity_lookup:
-                self.uuid_lookup[uuid] = entity
+            if entity_id not in self.entity_id_lookup:
+                self.entity_id_lookup[entity_id] = entity
                 self.entities.append(entity)
-                rospy.logdebug("Added entity with uuid: %s", uuid)
+                rospy.logdebug("Added entity with entity_id: %s", entity_id)
         elif isinstance(entity, Query):
-            if uuid not in self.uuid_query_lookup:
-                self.uuid_lookup[uuid] = entity
-                rospy.logdebug("Added query with uuid: %s", uuid)
+            if entity_id not in self.entity_id_lookup:
+                self.entity_id_lookup[entity_id] = entity
+                rospy.logdebug("Added query with entity_id: %s", entity_id)
         else:
-            raise TypeError("add_to_world() parameter thing={0} is not a subclass of Entity or Query".format(entity))
+            raise TypeError("add_to_world() parameter entity={0} is not a subclass of Entity or Query".format(entity))
 
-    def add_create_entity_callback(self, entity_type, callback):
-        if not isinstance(entity_type, str):
-            raise TypeError("add_create_entity_callback() parameter entity_type={0} is not a str".format(entity_type))
+    def entity_from_entity_id(self, entity_id):
+        if not isinstance(entity_id, str):
+            raise TypeError("get_entity_from_entity_id() parameter entity_id={0} is not a int".format(entity_id))
 
-        if not is_callable(callback):
-            raise TypeError("add_create_entity_callback() parameter callback={0} is not callable".format(callback))
-
-        self.create_entity_callbacks[entity_type] = callback
-
-    def make_entity_from_entity_msg(self, entity_msg):
-        if not isinstance(entity_msg, EntityMsg):
-            raise TypeError("create_entity() parameter entity_msg={0} is not a subclass of EntityMsg".format(entity_msg))
-
-        callback = self.create_entity_callbacks[entity_msg]
-        return callback(entity_msg)
-
-    def get_entity_from_uuid(self, uuid):
-        if not isinstance(uuid, int):
-            raise TypeError("get_entity_from_uuid() parameter uuid={0} is not a int".format(uuid))
-
-        if uuid in self.uuid_lookup:
-            return self.uuid_lookup[uuid]
+        if entity_id in self.entity_id_lookup:
+            return self.entity_id_lookup[entity_id]
         else:
-            raise IndexError("get_entity_from_uuid() parameter uuid={0} is not in self.uuid_lookup".format(uuid))
+            raise IndexError("get_entity_from_entity_id() parameter entity_id={0} is not in self.entity_id_lookup".format(entity_id))
 
-    def gaze_tf_id(self, req):
-        obj = self.get_entity_from_uuid(int(req.uri))
-        tf_id = obj.say_to_gaze_tf_id()
-        return GazeIDResponse(tf_id)
+    def tf_frame_service_callback(self, req):
+        entity = self.entity_from_entity_id(req.entity_id)
+        tf_frame = entity.tf_frame_id()
+        return TfFrameResponse(tf_frame)
 
-    def gesture_tf_id(self, req):
-        obj = self.get_entity_from_uuid(int(req.uri))
-        tf_id = obj.say_to_gesture_tf_id()
-        return GestureIDResponse(tf_id)
+    def if_queryable_execute_callback(self, req):
+        entity = self.entity_from_entity_id(req.entity_id)
+        response = IfQueryableExecuteResponse()
 
-    def tf_id(self, req):
-        obj = self.get_entity_from_uuid(int(req.uri))
-        tf_id = obj.tf_id()
-        return TFIDResponse(tf_id)
+        if isinstance(entity, Query):
+            response.is_queryable = True
+            entities = entity.execute()
+            response.entities = World.to_entity_list_msg(entities)
+        else:
+            response.is_queryable = False
 
-    def is_queryable(self, req):
-        obj = self.get_entity_from_uuid(int(req.uri))
-        is_queryable = obj.is_queryable()
-        return IsQueryableResponse(is_queryable)
+        return response
 
-    def execute_query(self, req):
-        obj = self.get_entity_from_uuid(int(req.uri))
-        uris = obj.execute_query()
-        return ExecuteQueryResponse(uris)
+    @staticmethod
+    def to_entity_list_msg(entities):
+        entity_list_msg = EntityListMsg()
 
-    ''' Locked '''
-    def update_entities(self, msg):
-        with self.entity_update_lock:
-            if not isinstance(msg, EntitiesMsg):
-                raise TypeError("update_entities() parameter msg={0} is not an EntitiesMsg".format(msg))
+        for entity in entities:
+            entity_msg = EntityMsg()
+            entity_msg.entity_id = entity.get_id()
+            entity_list_msg.entities.append(entity_msg)
 
-            # Create new entities
-            for entity_msg in msg.entities:
-                entity_exists = False
-
-                for entity_py in self.entities:
-                    if entity_msg.type == entity_py.type and entity_msg.id == entity_py.id:
-                        if not entity_py.is_visible():
-                            rospy.logdebug('Setting entity to visible: %s', entity_msg)
-                            entity_py.visible = True
-
-                        entity_exists = True
-                        break
-
-                if not entity_exists:
-                    rospy.logdebug('Creating entity: %s', entity_msg)
-                    new_entity = self.make_entity_from_entity_msg(entity_msg)
-                    self.add_to_world(new_entity)
-
-            # Set entities that have dissapeared out of view to invisible
-            for entity_py in self.entities:
-                for entity_msg in msg.entities:
-                    if entity_msg.type == entity_py.type and entity_msg.id == entity_py.id:
-                        entity_py.visible = False
-                        break
+        return entity_list_msg

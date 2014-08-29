@@ -30,9 +30,6 @@
 # Author: Alexander Sorokin, Jamie Diprose
 # Based on C++ simple_action_server.h by Eitan Marder-Eppstein
 
-
-import roslib
-roslib.load_manifest('hri_framework')
 import rospy
 from actionlib import ActionServer, SimpleActionServer, GoalID, ServerGoalHandle
 from actionlib import GoalStatus
@@ -54,7 +51,7 @@ class MultiGoalActionServer():
         self.goal_handles = {}
         self.preempt_requests = {}
 
-        self.active_goals_pub = rospy.Publisher(name + "/active_goals", GoalList)
+        self.active_goals_pub = rospy.Publisher(name + "/active_goals", GoalList, queue_size=10)
         self.action_server = ActionServer(name, ActionSpec, self.internal_goal_callback, self.internal_preempt_callback, auto_start);
 
     def start(self):

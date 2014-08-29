@@ -7,8 +7,10 @@ from hri_msgs.msg import EntityMsg
 
 #World().add_create_entity_callback(Person.create_person)
 class Person(Entity):
-    def __init__(self, entity_type, entity_id):
-        Entity.__init__(self, entity_type, entity_id, None)
+    ENTITY_TYPE = 'person'
+
+    def __init__(self, person_number):
+        Entity.__init__(self, Person.ENTITY_TYPE, Person.ENTITY_TYPE + str(person_number), None)
         head = 'head'
         neck = 'neck'
         left_shoulder = 'left_shoulder'
@@ -30,7 +32,7 @@ class Person(Entity):
         if not isinstance(entity_msg, EntityMsg):
             raise TypeError("create_person() parameter entity_msg={0} is not a subclass of EntityMsg".format(entity_msg))
 
-        return Person(entity_msg.type, entity_msg.type + '_' + str(entity_msg.number))
+        return Person(Person.ENTITY_TYPE + '_' + str(entity_msg.number))
 
     def say_to_gaze_tf_id(self):
         return self.head.tf_frame_id()

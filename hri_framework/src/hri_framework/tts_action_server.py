@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-import roslib
-roslib.load_manifest('hri_framework')
 import rospy
 import actionlib
 import abc

@@ -49,7 +49,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
    FILES
    EntityMsg.msg
-   EntitiesMsg.msg
+   EntityListMsg.msg
    GoalList.msg
 )
 
@@ -64,7 +64,7 @@ add_service_files(
 ## Generate actions in the 'action' folder
 add_action_files(
    FILES
-   FacialExpression.action
+   Expression.action
    Gesture.action
    Gaze.action
    NavigateTo.action

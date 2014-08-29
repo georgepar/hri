@@ -27,11 +27,13 @@ from hri_api.math import Util
 from .selectors import identity
 from .types import (is_iterable, is_type)
 from .portability import (is_callable, totally_ordered)
+from hri_api.util import InitNode
 
 
 class Query(object):
 
     def __init__(self, iterable, func=None):
+        InitNode()
 
         if not is_iterable(iterable):
             raise TypeError("Cannot construct Query from non-iterable {0}".format(str(type(iterable))[7: -2]))
@@ -47,6 +49,9 @@ class Query(object):
             return iter(self.func())
         else:
             return iter(self.iterable)
+
+    def get_id(self):
+        return str(id(self))
 
     def of_type(self, classinfo):
         if not is_type(classinfo):

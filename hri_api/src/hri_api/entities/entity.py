@@ -10,32 +10,38 @@ from rospy import ServiceProxy
 import actionlib
 import abc
 import math
+from hri_api.util import InitNode
+from hri_api.actions import MultiGoalActionClient
 
 
 class Entity(AbstractEntity):
-    def __init__(self, entity_type, entity_id, parent):
+    def __init__(self, entity_type, tf_frame_prefix, parent):
+        InitNode()
         self.tl = tf.TransformListener()
         self.entity_type = entity_type
-        self.entity_id = entity_id
+        self.tf_frame_prefix = tf_frame_prefix
         self.parent = parent
         self.visible = True
 
     def __eq__(self, other):
-        if self.entity_id == other.entity_id:
+        if self.tf_frame_id() == other.tf_frame_id():
             return True
         return False
 
     def is_visible(self):
         return self.visible
 
+    def get_id(self):
+        return str(id(self))
+
     def default_tf_frame_id(self):
         raise NotImplementedError("Please implement this method")
 
     def tf_frame_id(self):
         if self.parent is None:
-            return self.entity_id
+            return self.tf_frame_prefix
         else:
-            return self.parent.tf_frame_id() + '_' + self.entity_id
+            return self.parent.tf_frame_id() + '_' + self.tf_frame_prefix
 
     def translation_to(self, target):
         if not isinstance(target, AbstractEntity):
@@ -105,8 +111,8 @@ class Entity(AbstractEntity):
     @staticmethod
     def wait_for_action_servers(*action_servers):
         for i, action_server in enumerate(action_servers):
-            if not isinstance(action_server, actionlib.SimpleActionClient):
-                raise TypeError("wait_for_action_servers() parameter action_servers[{0}]={1} is not a SimpleActionClient".format(i, action_server))
+            if not isinstance(action_server, (actionlib.SimpleActionClient, MultiGoalActionClient)):
+                raise TypeError("wait_for_action_servers() parameter action_servers[{0}]={1} is not a SimpleActionClient or MultiGoalActionClient".format(i, action_server))
 
             name = action_server.action_client.ns
             rospy.loginfo("Waiting for action server: %s", name)

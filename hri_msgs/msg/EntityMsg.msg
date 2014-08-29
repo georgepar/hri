@@ -1,2 +1,1 @@
-string type     # Entity type
-int32 number    # Entity number
+string entity_id         # Unique id corresponding to entity

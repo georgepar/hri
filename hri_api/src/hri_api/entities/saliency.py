@@ -6,10 +6,12 @@ from hri_msgs.msg import EntityMsg
 
 
 class Saliency(Entity):
-    def __init__(self, entity_type, entity_id):
-        Entity.__init__(self, entity_type, entity_id, None)
+    ENTITY_TYPE = 'saliency'
 
-    @staticmethod
+    def __init__(self, saliency_number):
+        Entity.__init__(self, Saliency.ENTITY_TYPE, Saliency.ENTITY_TYPE + str(saliency_number), None)
+
+    @staticmethod #TODO: make a create entity service in World, for objects that arrive from perception
     def create_saliency(entity_msg):
         if not isinstance(entity_msg, EntityMsg):
             raise TypeError("create_saliency() parameter entity_msg={0} is not a subclass of EntityMsg".format(entity_msg))
