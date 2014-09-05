@@ -121,7 +121,7 @@ class Entity(AbstractEntity):
 
         rospy.loginfo("All action servers found")
 
-    @abc.classmethod
+    @classmethod
     def make(cls, entity_num):
         """
         make a class and return it

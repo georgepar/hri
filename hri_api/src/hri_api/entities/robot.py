@@ -11,6 +11,7 @@ import threading
 from hri_api.util import RobotConfigParser, SayToParser, GestureDoesNotExistError, FacialExpressionDoesNotExistError
 from hri_api.actions import MultiGoalActionClient
 from hri_api.entities import Speed, Intensity, Gesture, Expression
+from hri_msgs.msg import TextToSpeechAction, TextToSpeechGoal
 
 
 class Robot(Entity):
@@ -25,7 +26,10 @@ class Robot(Entity):
 
         self.facial_expression_client = MultiGoalActionClient('expression', ExpressionAction)
         self.gaze_client = actionlib.SimpleActionClient('gaze', GazeAction)
-        self.wait_for_action_servers(self.gaze_client, self.facial_expression_client)
+
+        self.tts_client = actionlib.SimpleActionClient('text_to_speech', TextToSpeechAction)
+        self.wait_for_action_servers(self.gaze_client, self.facial_expression_client, self.tts_client)
+
 
         # self.tts_duration_srv = rospy.ServiceProxy('tts_subsentence_duration', TextToSpeechSubsentenceDuration)
         # self.wait_for_services(self.tts_duration_srv)
@@ -106,57 +110,69 @@ class Robot(Entity):
     #     self.__add_action(action_handle)
     #     return action_handle
 
-    def gaze(self, target, speed=Speed.moderately):
+    def say(self, text):
+        if not isinstance(text, str):
+            raise TypeError("say() parameter text={0} is not a str".format(text))
+
+        goal = TextToSpeechGoal()
+        goal.sentence = text
+        self.tts_client.send_goal(goal)
+
+    def say_and_wait(self, text):
+        self.say(text)
+        self.tts_client.wait_for_result()
+
+    def gaze(self, target, speed=0.5):
         if not isinstance(target, Entity):
             raise TypeError("gaze() parameter target={0} is not an Entity".format(target))
 
-        if not isinstance(speed, Speed):
-            raise TypeError("gaze() parameter speed={0} is not a Speed enum".format(speed))
+        if not isinstance(speed, float):
+            raise TypeError("gaze() parameter speed={0} is not a float".format(speed))
+        elif not (0.0 <= speed <= 1.0):
+            raise ValueError("gaze() parameter speed={0} is not between the range 0.0 - 1.0".format(speed))
 
         # self.cancel_actions_of_namespace(self.say_to_client.gaze_client.ns)
 
         World().add_to_world(target)
         goal = GazeGoal()
         goal.target = target.get_id()
-
-        if speed == Speed.slowly:
-            goal.speed = 0.05
-            goal.acceleration = 0.05
-        elif speed == Speed.moderately:
-            goal.speed = 0.2
-            goal.acceleration = 0.1
-        else:
-            goal.speed = 0.35
-            goal.acceleration = 0.1
+        goal.speed = speed
+        goal.acceleration = 0.3
 
         self.gaze_client.send_goal(goal)
 
-    def gaze_and_wait(self, target, speed=Speed.moderately, timeout=rospy.Duration()):
+    def gaze_and_wait(self, target, speed=0.5, timeout=rospy.Duration()):
         self.gaze(target, speed)
         self.gaze_client.wait_for_result(timeout)
 
-    def show_expression(self, expression, intensity=Intensity.mildly, speed=Speed.moderately, duration=1.0):
+    def show_expression(self, expression, intensity=0.5, speed=0.5, duration=1.0, timeout=rospy.Duration()):
         if not isinstance(expression, Expression):
             raise TypeError("show_expression() parameter type={0} is not an Expression".format(expression))
 
-        if not isinstance(intensity, Intensity):
-            raise TypeError("show_expression() parameter intensity={0} is not an Intensity enum".format(intensity))
+        if not isinstance(intensity, float):
+            raise TypeError("show_expression() parameter intensity={0} is not a float".format(intensity))
+        elif not (0.0 <= intensity <= 1.0):
+            raise ValueError("show_expression() parameter intensity={0} is not between the range 0.0 - 1.0".format(intensity))
 
-        if not isinstance(speed, Speed):
-            raise TypeError("show_expression() parameter speed={0} is not a Speed enum".format(speed))
+        if not isinstance(speed, float):
+            raise TypeError("show_expression() parameter speed={0} is not a float".format(speed))
+        elif not (0.0 <= speed <= 1.0):
+            raise ValueError("show_expression() parameter speed={0} is not between the range 0.0 - 1.0".format(speed))
 
         if not isinstance(duration, float):
             raise TypeError("show_expression() parameter duration={0} is not a float".format(duration))
+        elif not (0.0 <= duration):
+            raise ValueError("show_expression() parameter duration={0} is not > 0.0".format(duration))
 
         goal = ExpressionGoal()
         goal.expression = expression.name
-        goal.intensity = intensity.name
-        goal.speed = speed.name
+        goal.intensity = intensity
+        goal.speed = speed
         goal.duration = duration
 
         return self.facial_expression_client.send_goal(goal)
 
-    def show_expression_and_wait(self, expression, intensity=Intensity.mildly, speed=Speed.moderately, duration=1.0, timeout=rospy.Duration()):
+    def show_expression_and_wait(self, expression, intensity=0.5, speed=0.5, duration=1.0, timeout=rospy.Duration()):
         goal_handle = self.show_expression(expression, intensity, speed, duration)
         self.facial_expression_client.wait_for_result(goal_handle, timeout)
 

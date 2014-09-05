@@ -56,6 +56,7 @@ add_message_files(
 ## Generate services in the 'srv' folder
 add_service_files(
    FILES
+   AddEntity.srv
    TfFrame.srv
    IfQueryableExecute.srv
    TextToSpeechSubsentenceDuration.srv

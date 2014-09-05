@@ -1,6 +1,6 @@
 # Define the goal
-string type             # Type of gesture to be executed
-float32 duration        # Duration gesture for be performed for
+string gesture              # Type of gesture to be executed
+float32 duration            # Duration gesture for be performed for
 string target   		    # The target to perform gesture toward
 ---
 # Define the result

@@ -14,9 +14,7 @@ class TextToSpeechActionServer():
         self.feedback = None
         self.result = None
 
-    def start_server(self):
-        rospy.init_node("tts_action_server", anonymous=True)
-
+    def start(self):
         rospy.Service('tts_subsentence_duration', TextToSpeechSubsentenceDuration, self.__tts_subsentence_duration)
         self.server = actionlib.SimpleActionServer('text_to_speech', TextToSpeechAction, auto_start=False)
         self.server.register_goal_callback(self.__process_goal)
@@ -24,6 +22,7 @@ class TextToSpeechActionServer():
 
         self.feedback = TextToSpeechFeedback()
         self.result = TextToSpeechResult()
+        self.server.start()
 
     def __process_goal(self):
         #Check to see if goal currently running, if it is then cancel it.
