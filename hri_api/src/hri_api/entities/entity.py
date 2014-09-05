@@ -120,3 +120,10 @@ class Entity(AbstractEntity):
             rospy.loginfo("Action server: %s found", name)
 
         rospy.loginfo("All action servers found")
+
+    @abc.classmethod
+    def make(cls, entity_num):
+        """
+        make a class and return it
+        """
+        raise NotImplementedError('Please implement my make method')

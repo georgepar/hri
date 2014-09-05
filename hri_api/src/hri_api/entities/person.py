@@ -27,18 +27,9 @@ class Person(Entity):
         self.left_hand = LeftHand(left_hand, left_hand, self)
         self.right_hand = RightHand(right_hand, right_hand, self)
 
-    @staticmethod
-    def create_person(entity_msg):
-        if not isinstance(entity_msg, EntityMsg):
-            raise TypeError("create_person() parameter entity_msg={0} is not a subclass of EntityMsg".format(entity_msg))
-
-        return Person(Person.ENTITY_TYPE + '_' + str(entity_msg.number))
-
-    def say_to_gaze_tf_id(self):
-        return self.head.tf_frame_id()
-
-    def say_to_gesture_tf_id(self):
-        return self.head.tf_frame_id()
+    @classmethod
+    def make(cls, entity_num):
+        return Person(entity_num)
 
     def default_tf_frame_id(self):
         return self.torso.tf_frame_id()

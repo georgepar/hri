@@ -36,3 +36,4 @@ class AbstractEntity(object):
         """
         :return: a unique numeric id for the entity
         """
+

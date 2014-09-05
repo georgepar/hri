@@ -10,7 +10,7 @@ from hri_api.entities import Entity
 from hri_api.query import Query
 from hri_api.query import is_callable
 from hri_api.util import Singleton, InitNode
-from hri_msgs.srv import TfFrame, TfFrameResponse, IfQueryableExecute, IfQueryableExecuteResponse
+from hri_msgs.srv import TfFrame, TfFrameResponse, IfQueryableExecute, IfQueryableExecuteResponse, AddEntity, AddEntityResponse
 
 
 class World():
@@ -20,12 +20,27 @@ class World():
         InitNode()
         self.tf_frame_service = rospy.Service('tf_frame_service', TfFrame, self.tf_frame_service_callback)
         self.if_queryable_execute_service = rospy.Service('if_queryable_execute', IfQueryableExecute, self.if_queryable_execute_callback)
+        self.add_entity_srv = rospy.Service('add_entity_service', AddEntity, self.add_entity_callback)
 
+        self.entity_lock = threading.RLock()
         self.entities = []
         self.entity_id_lookup = {}
+        self.entity_classes = {}
 
     def __iter__(self):
         return iter(self.entities)
+
+    def add_entity_callback(self, req):
+        with self.entity_lock:
+            if req.entity_type in self.entity_classes:
+                entity = self.entity_classes[req.entity_type].make(req.entity_id)
+                self.add_to_world(entity)
+                rospy.logerr('added entity {0} to World'.format(entity))
+            else:
+                rospy.logerr('entity type {0} does not have an associated class in World'.format(req.entity_type))
+
+    def add_entity_class(self, cls, entity_type):
+        self.entity_classes[entity_type] = cls
 
     def add_to_world(self, entity):
         entity_id = entity.get_id()
