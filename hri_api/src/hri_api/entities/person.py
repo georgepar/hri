@@ -34,6 +34,9 @@ class Person(Entity):
     def default_tf_frame_id(self):
         return self.torso.tf_frame_id()
 
+    def said_to(self, interlocutor, start_time, end_time):
+        pass
+
 
 class Head(Entity):
     def __init__(self, entity_type, entity_id, parent):
