@@ -22,7 +22,12 @@ class TextToSpeechActionServer():
 
         self.feedback = TextToSpeechFeedback()
         self.result = TextToSpeechResult()
+        rospy.on_shutdown(self.on_shutdown)
         self.server.start()
+        rospy.loginfo('TextToSpeechActionServer started')
+
+    def on_shutdown(self):
+        pass
 
     def __process_goal(self):
         #Check to see if goal currently running, if it is then cancel it.

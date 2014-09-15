@@ -2,7 +2,7 @@
 import roslib
 roslib.load_manifest('hri_framework')
 from hri_msgs.msg import TimerAction, TimerResult, TimerFeedback
-from hri_framework.multi_goal_action_server import MultiGoalActionServer
+from hri_framework.multi_goal_action_srv import MultiGoalActionServer
 import threading
 
 class TimerActionServer(object):
