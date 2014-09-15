@@ -9,7 +9,7 @@ class GestureActionServer():
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
-        self.node_name = "gesture_action_server"
+        self.node_name = "gesture"
         self.action_server = MultiGoalActionServer(self.node_name, GestureAction, auto_start=False)
         self.action_server.register_goal_callback(self.__goal_callback)
         self.action_server.register_preempt_callback(self.__preempt_callback)
