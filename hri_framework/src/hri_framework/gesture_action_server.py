@@ -2,38 +2,49 @@
 import rospy
 import abc
 from hri_msgs.msg import GestureAction, GestureActionFeedback
-from hri_framework.multi_goal_action_server import MultiGoalActionServer
+from hri_framework.multi_goal_action_srv import MultiGoalActionServer
 
 
 class GestureActionServer():
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self):
-        self.node_name = "gesture_action_server"
+    def __init__(self, gesture_enum):
+        self.node_name = "gesture"
+        self.gesture_enum = gesture_enum
         self.action_server = MultiGoalActionServer(self.node_name, GestureAction, auto_start=False)
         self.action_server.register_goal_callback(self.__goal_callback)
         self.action_server.register_preempt_callback(self.__preempt_callback)
 
-    def start_server(self):
-        rospy.init_node(self.node_name, anonymous=True)
+    def start(self):
         self.action_server.start()
+        rospy.loginfo('GestureActionServer started')
+
+    def has_gesture(self, gesture_name):
+        found = False
+        for name, member in self.gesture_enum.__members__.items():
+            if name == gesture_name:
+                return True
+
+        if not found:
+            rospy.logerr('{0} is not a valid gesture. Valid gestures are: {1}'.format(gesture_name, self.gesture_enum.__members__.items()))
+            return False
 
     def __goal_callback(self, goal_handle):
         new_goal = goal_handle.get_goal()
-        self.start_gesture(new_goal)
-        rospy.loginfo("Gesture received id: %s, name: %s", goal_handle.get_goal_id().id, new_goal.type)
+        self.start_gesture(goal_handle)
+        rospy.loginfo("Gesture received id: %s, name: %s", goal_handle.get_goal_id().id, new_goal.gesture)
 
     def __preempt_callback(self, goal_handle):
-        self.cancel_gesture(goal_handle.get_goal_id().id)
-        rospy.loginfo("Gesture preempted id: %s, name: %s", goal_handle.get_goal_id().id, goal_handle.get_goal().type)
+        self.cancel_gesture(goal_handle)
+        rospy.loginfo("Gesture preempted id: %s, name: %s", goal_handle.get_goal_id().id, goal_handle.get_goal().gesture)
 
     @abc.abstractmethod
-    def start_gesture(self, gesture_action_msg):
+    def start_gesture(self, goal_handle):
         """ Start your gesture. """
         return
 
     @abc.abstractmethod
-    def cancel_gesture(self, gesture_id):
+    def cancel_gesture(self, goal_handle):
         """ Cancel gesture if it is currently running. """
         return
 
@@ -47,7 +58,7 @@ class GestureActionServer():
     def gesture_finished(self, goal_handle):
         """ Call this method when the gesture has finished """
         self.action_server.set_succeeded(goal_handle)
-        rospy.loginfo("Gesture finished id: %s, name: %s",  goal_handle.get_goal_id().id, goal_handle.get_goal().type)
+        rospy.loginfo("Gesture finished id: %s, name: %s",  goal_handle.get_goal_id().id, goal_handle.get_goal().gesture)
 
 
 
