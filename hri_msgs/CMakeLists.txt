@@ -69,7 +69,6 @@ add_action_files(
    Gesture.action
    Gaze.action
    NavigateTo.action
-   SayTo.action
    TextToSpeech.action
    Timer.action
 )

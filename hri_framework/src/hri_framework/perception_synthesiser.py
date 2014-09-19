@@ -5,12 +5,17 @@ from threading import Thread
 import tf
 
 
-class SingleEntitySource():
+class EntitySource():
 
     def __init__(self, topic_name, topic_type, entity_type):
         self.topic_name = topic_name
         self.topic_type = topic_type
         self.entity_type = entity_type
+
+class SingleEntitySource():
+
+    def __init__(self, topic_name, topic_type, entity_type):
+        EntitySource.__init__(topic_name, topic_type, entity_type)
         self.data = None
         self.initialized = False
         self.sub = rospy.Subscriber(topic_name, topic_type, self.data_callback)
@@ -29,6 +34,7 @@ class SingleEntitySource():
             time = self.data.header.stamp
             frame_id = self.data.header.frame_id
             self.br.sendTransform(self.data.point, (0, 0, 0, 1), time, frame_id, self.entity_type)
+
 
 
 class PerceptionSynthesizer(Thread):

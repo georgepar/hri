@@ -28,24 +28,24 @@ class TestSelect(unittest.TestCase):
 
     def test_select(self):
         a = range(0, 100)
-        b = Query(a).select(lambda x: x % 3 == 0).execute()
+        b = Query(a).select_where(lambda x: x % 3 == 0).execute()
         c = list(range(0, 100, 3))
         self.assertEqual(b, c)
 
     def test_select_not_callable(self):
         a = range(0, 100)
-        self.assertRaises(TypeError, lambda: Query(a).select("not callable"))
+        self.assertRaises(TypeError, lambda: Query(a).select_where("not callable"))
 
     def test_select_infinite(self):
         a = infinite()
-        b = Query(a).select(lambda x: x % 5 == 0).take(3).execute()
+        b = Query(a).select_where(lambda x: x % 5 == 0).take(3).execute()
         c = [0, 5, 10]
         self.assertEqual(b, c)
 
     def test_select_deferred(self):
         a = TracingGenerator()
         self.assertEqual(a.trace, [])
-        b = Query(a).select(lambda x: x % 3 == 0)
+        b = Query(a).select_where(lambda x: x % 3 == 0)
         self.assertEqual(a.trace, [])
         c = b.take(2).execute()
         self.assertEqual(a.trace, [0, 1, 2, 3])

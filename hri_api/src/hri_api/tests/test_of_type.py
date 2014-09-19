@@ -27,19 +27,19 @@ class TestOfType(unittest.TestCase):
 
     def test_of_type_int(self):
         a = ['one', 2, 3, 'four', 'five', 6, 'seven', 8, 9, 'ten']
-        b = Query(a).of_type(int).execute()
+        b = Query(a).select_type(int).execute()
         c = [2, 3, 6, 8, 9]
         self.assertEqual(b, c)
 
     def test_of_type_str(self):
         a = ['one', 2, 3, 'four', 'five', 6, 'seven', 8, 9, 'ten']
-        d = Query(a).of_type(str).execute()
+        d = Query(a).select_type(str).execute()
         e = ['one', 'four', 'five', 'seven', 'ten']
         self.assertEqual(d, e)
 
     def test_of_type_tuple(self):
         a = ['one', 2, 3, 'four', 3.2, 'five', 6, 'seven', 8, 9, 'ten', 9.4]
-        d = Query(a).of_type((str, int)).execute()
+        d = Query(a).select_type((str, int)).execute()
         e = ['one', 2, 3, 'four', 'five', 6, 'seven', 8, 9, 'ten']
         self.assertEqual(d, e)
 

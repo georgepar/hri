@@ -53,29 +53,29 @@ class Query(object):
     def get_id(self):
         return str(id(self))
 
-    def of_type(self, classinfo):
+    def select_type(self, classinfo):
         if not is_type(classinfo):
             raise TypeError("of_type() parameter classinfo={0} is not a class "
                 "object or a type objector a tuple of class or "
                 "type entities.".format(classinfo))
 
-        return self.select(lambda x: isinstance(x, classinfo))
+        return self.select_where(lambda x: isinstance(x, classinfo))
 
-    def select(self, predicate):
+    def select_where(self, predicate):
         if not is_callable(predicate):
             raise TypeError("select() parameter predicate={predicate} is not "
                                   "callable".format(predicate=repr(predicate)))
 
         return Query(self, func=lambda: itertools.ifilter(predicate, self))
 
-    def order_by_ascending(self, key_selector=identity):
+    def sort_ascending(self, key_selector=identity):
         if not is_callable(key_selector):
             raise TypeError("order_by_ascending() parameter key_selector={key_selector} "
                     "is not callable".format(key_selector=repr(key_selector)))
 
         return OrderedQuery(self, -1, key_selector)
 
-    def order_by_descending(self, key_selector=identity):
+    def sort_descending(self, key_selector=identity):
         if not is_callable(key_selector):
             raise TypeError("order_by_descending() parameter key_selector={0} "
                             "is not callable".format(repr(key_selector)))

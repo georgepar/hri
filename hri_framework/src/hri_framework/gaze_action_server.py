@@ -6,11 +6,11 @@ from threading import Thread
 from actionlib.simple_action_server import SimpleActionServer
 
 
-class GazeActionServer():
+class IGazeActionServer():
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, action_server_name):
-        self.action_server_name = action_server_name
+    def __init__(self):
+        self.action_server_name = 'gaze'
         self.action_server = SimpleActionServer(self.action_server_name, GazeAction, auto_start = False)
         self.action_server.register_goal_callback(self.__goal_callback)
         self.origin_frame = rospy.get_param('~origin_frame', 'base_link')
