@@ -44,7 +44,7 @@ class GestureActionServer():
         return
 
     @abc.abstractmethod
-    def cancel_gesture(self, goal_id):
+    def cancel_gesture(self, goal_handle):
         """ Cancel gesture if it is currently running. """
         return
 
