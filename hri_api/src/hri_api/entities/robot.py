@@ -36,7 +36,7 @@ import actionlib
 import threading
 from hri_api.util import RobotConfigParser, SayToParser, GestureDoesNotExistError, FacialExpressionDoesNotExistError
 from hri_api.actions import MultiGoalActionClient
-from hri_api.entities import Speed, Intensity, Gesture, Expression
+from hri_api.entities import Speed, Intensity, IGesture, IExpression
 from hri_msgs.msg import TextToSpeechAction, TextToSpeechGoal
 from hri_api.util import *
 import abc
@@ -138,8 +138,8 @@ class SayToPlan():
 
         ParamFormatting.assert_types(self.parse_parameters, text, str)
         ParamFormatting.assert_types(self.parse_parameters, audience, Entity, Query)
-        ParamFormatting.assert_types(self.parse_parameters, expression_enum, Expression)
-        ParamFormatting.assert_types(self.parse_parameters, gesture_enum, Gesture)
+        ParamFormatting.assert_types(self.parse_parameters, expression_enum, IExpression)
+        ParamFormatting.assert_types(self.parse_parameters, gesture_enum, IGesture)
 
         if not is_callable(tts_duration_srv):
             raise TypeError("parse_parameters() parameter tts_duration_srv={0} is not callable".format(tts_duration_srv))
@@ -278,8 +278,8 @@ class Robot(Entity):
         raise NotImplementedError("Please implement the blink method")
 
     # Facial expressions
-    def expression(self, expression, intensity=0.5, speed=0.5, duration=rospy.Duration()):
-        ParamFormatting.assert_types(self.expression, expression, Expression)
+    def expression(self, expression, intensity=None, speed=None, duration=None):
+        ParamFormatting.assert_types(self.expression, expression, IExpression)
 
         ParamFormatting.assert_types(self.expression, intensity, float)
         ParamFormatting.assert_range(self.expression, intensity, 0.0, 1.0)
@@ -301,7 +301,7 @@ class Robot(Entity):
         self.add_action_handle(ah)
         return ah
 
-    def expression_and_wait(self, expression, intensity=0.5, speed=0.5, duration=rospy.Duration(), timeout=rospy.Duration()):
+    def expression_and_wait(self, expression, intensity=None, speed=None, duration=None, timeout=rospy.Duration()):
         ah = self.expression(expression, intensity, speed, duration)
         self.expression_client.wait_for_result(ah.client_goal_handle, timeout)
 
@@ -309,8 +309,8 @@ class Robot(Entity):
         self.remove_action_handle(goal_handle=goal_handle)
 
     # Gestures
-    def gesture(self, gesture, target=None, duration=1.0):
-        ParamFormatting.assert_types(self.gesture, gesture, Gesture)
+    def gesture(self, gesture, target=None, duration=None):
+        ParamFormatting.assert_types(self.gesture, gesture, IGesture)
         #ParamFormatting.assert_types(self.expression, duration, rospy.Duration)
 
         goal = GestureGoal()
@@ -328,7 +328,7 @@ class Robot(Entity):
         self.add_action_handle(ah)
         return ah
 
-    def gesture_and_wait(self, gesture, target=None, duration=1.0, timeout=rospy.Duration()):
+    def gesture_and_wait(self, gesture, target=None, duration=None, timeout=rospy.Duration()):
         ah = self.gesture(gesture, target, duration)
         self.gesture_client.wait_for_result(ah.client_goal_handle, timeout)
 

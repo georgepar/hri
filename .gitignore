@@ -1,2 +1,6 @@
 *.pyc
 .idea
+hri/.idea
+hri_api/.idea
+hri_framework/.idea
+hri_msgs/.idea

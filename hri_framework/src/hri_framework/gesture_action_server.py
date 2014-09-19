@@ -2,7 +2,30 @@
 import rospy
 import abc
 from hri_msgs.msg import GestureAction, GestureActionFeedback
+from threading import Timer
 from hri_framework.multi_goal_action_srv import MultiGoalActionServer
+
+
+class GestureHandle():
+    def __init__(self, goal_handle):
+        self.goal_id = goal_handle.get_goal_id().id
+        self.goal_handle = goal_handle
+        self.motion_id = None
+        self.timer = None
+
+    def set_motion_id(self, motion_id):
+        self.motion_id = motion_id
+
+    def get_motion_id(self):
+        return self.motion_id
+
+    def start_timer(self, duration, callback, args):
+        self.timer = Timer(duration, callback, args)
+        self.timer.start()
+
+    def stop_timer(self):
+        if self.timer is not None:
+            self.timer.cancel()
 
 
 class IGestureActionServer():
@@ -11,6 +34,7 @@ class IGestureActionServer():
     def __init__(self, gesture_enum):
         self.node_name = "gesture"
         self.gesture_enum = gesture_enum
+        self.gesture_handle_lookup = {}
         self.action_server = MultiGoalActionServer(self.node_name, GestureAction, auto_start=False)
         self.action_server.register_goal_callback(self.__goal_callback)
         self.action_server.register_preempt_callback(self.__preempt_callback)
@@ -31,11 +55,13 @@ class IGestureActionServer():
 
     def __goal_callback(self, goal_handle):
         new_goal = goal_handle.get_goal()
+        self.add_gesture_handle(goal_handle)
         self.start_gesture(goal_handle)
         rospy.loginfo("Gesture received id: %s, name: %s", goal_handle.get_goal_id().id, new_goal.gesture)
 
     def __preempt_callback(self, goal_handle):
         self.cancel_gesture(goal_handle)
+        self.remove_gesture_handle(goal_handle)
         rospy.loginfo("Gesture preempted id: %s, name: %s", goal_handle.get_goal_id().id, goal_handle.get_goal().gesture)
 
     @abc.abstractmethod
@@ -45,8 +71,17 @@ class IGestureActionServer():
 
     @abc.abstractmethod
     def cancel_gesture(self, goal_handle):
+        gesture_handle = self.get_gesture_handle(goal_handle)
+        gesture_handle.stop_timer()
+
         """ Cancel gesture if it is currently running. """
         return
+
+    def set_aborted(self, goal_handle):
+        gesture_handle = self.get_gesture_handle(goal_handle)
+        gesture_handle.stop_timer()
+        self.action_server.set_aborted()
+        self.remove_gesture_handle(goal_handle)
 
     def send_feedback(self, goal_handle, distance_to_target):
         """ Call this method to send feedback about the distance to the target """
@@ -55,10 +90,22 @@ class IGestureActionServer():
         self.action_server.publish_feedback(goal_handle, self.feedback)
         rospy.loginfo("Gesture feedback id: %s, name: %s, distance_to_target: $s", goal_handle.get_goal_id().id, goal_handle.get_goal().type, distance_to_target)
 
+    def set_succceded_on_timeout(self, duration, goal_handle):
+        gesture_handle = self.get_gesture_handle(goal_handle)
+        gesture_handle.start_timer(duration, self.gesture_finished, [goal_handle])
+
     def gesture_finished(self, goal_handle):
         """ Call this method when the gesture has finished """
         self.action_server.set_succeeded(goal_handle)
+        self.remove_gesture_handle(goal_handle)
         rospy.loginfo("Gesture finished id: %s, name: %s",  goal_handle.get_goal_id().id, goal_handle.get_goal().gesture)
 
+    def get_gesture_handle(self, goal_handle):
+        return self.gesture_handle_lookup[goal_handle.get_goal_id().id]
 
+    def add_gesture_handle(self, gesture_handle):
+        self.gesture_handle_lookup[gesture_handle.goal_id] = gesture_handle
+
+    def remove_gesture_handle(self, goal_handle):
+        self.gesture_handle_lookup.pop(goal_handle.get_goal_id().id)
 
