@@ -6,7 +6,7 @@ from hri_msgs.srv import TextToSpeechSubsentenceDuration, TextToSpeechSubsentenc
 from hri_msgs.msg import TextToSpeechFeedback, TextToSpeechResult, TextToSpeechAction
 
 
-class TextToSpeechActionServer():
+class ITextToSpeechActionServer():
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):

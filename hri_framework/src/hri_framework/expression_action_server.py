@@ -4,7 +4,7 @@ from hri_msgs.msg import ExpressionAction
 from hri_framework import MultiGoalActionServer
 
 
-class ExpressionActionServer(object):
+class IExpressionActionServer(object):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):

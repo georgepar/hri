@@ -2,10 +2,10 @@
 import rospy
 import abc
 from hri_msgs.msg import GestureAction, GestureActionFeedback
-from hri_framework.multi_goal_action_srv import MultiGoalActionServer
+from hri_framework.multi_goal_action_server import MultiGoalActionServer
 
 
-class GestureActionServer():
+class IGestureActionServer():
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, gesture_enum):
