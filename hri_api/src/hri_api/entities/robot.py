@@ -36,7 +36,7 @@ import actionlib
 import threading
 from hri_api.util import RobotConfigParser, SayToParser, GestureDoesNotExistError, FacialExpressionDoesNotExistError
 from hri_api.actions import MultiGoalActionClient
-from hri_api.entities import Speed, Intensity, IGesture, IExpression
+from hri_api.entities import IGesture, IExpression
 from hri_msgs.msg import TextToSpeechAction, TextToSpeechGoal
 from hri_api.util import *
 import abc
@@ -281,13 +281,13 @@ class Robot(Entity):
     def expression(self, expression, intensity=None, speed=None, duration=None):
         ParamFormatting.assert_types(self.expression, expression, IExpression)
 
-        ParamFormatting.assert_types(self.expression, intensity, float)
-        ParamFormatting.assert_range(self.expression, intensity, 0.0, 1.0)
-
-        ParamFormatting.assert_types(self.expression, speed, float)
-        ParamFormatting.assert_range(self.expression, speed, 0.0, 1.0)
-
-        ParamFormatting.assert_types(self.expression, duration, rospy.Duration)
+        # ParamFormatting.assert_types(self.expression, intensity, float)
+        # ParamFormatting.assert_range(self.expression, intensity, 0.0, 1.0)
+        #
+        # ParamFormatting.assert_types(self.expression, speed, float)
+        # ParamFormatting.assert_range(self.expression, speed, 0.0, 1.0)
+        #
+        # ParamFormatting.assert_types(self.expression, duration, rospy.Duration)
 
         goal = ExpressionGoal()
         goal.expression = expression.name
@@ -315,7 +315,9 @@ class Robot(Entity):
 
         goal = GestureGoal()
         goal.gesture = gesture.name
-        goal.duration = duration
+
+        if goal.duration:
+            goal.duration = -1
 
         if target is not None:
             World().add_to_world(target)

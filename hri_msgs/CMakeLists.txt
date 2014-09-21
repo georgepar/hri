@@ -57,6 +57,7 @@ add_message_files(
 add_service_files(
    FILES
    AddEntity.srv
+   SetVisibility.srv
    TfFrame.srv
    IfQueryableExecute.srv
    TextToSpeechSubsentenceDuration.srv
@@ -67,7 +68,7 @@ add_action_files(
    FILES
    Expression.action
    Gesture.action
-   Gaze.action
+   Target.action
    NavigateTo.action
    TextToSpeech.action
    Timer.action

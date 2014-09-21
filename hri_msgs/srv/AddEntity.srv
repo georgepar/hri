@@ -1,2 +1,4 @@
 string entity_type              # The entity type, e.g. person, saliency
-int32 entity_num                # The number of the entity (local to its type)
+int32 local_id                  # The local_id of the entity (local to its type)
+---
+string global_id
