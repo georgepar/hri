@@ -23,6 +23,9 @@ class Entity(AbstractEntity):
         self.parent = parent
         self.visible = True
 
+    def __repr__(self):
+        return self.get_id()
+
     def __eq__(self, other):
         if self.tf_frame_id() == other.tf_frame_id():
             return True
@@ -52,7 +55,7 @@ class Entity(AbstractEntity):
             point = Point(trans[0], trans[1], trans[2])
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             point = Point()
-            rospy.loginfo("Couldn't transform from '" + self.tf_id() + "' to '" + target.tf_id() + "'")
+            rospy.loginfo("Couldn't transform from '" + self.tf_frame_id() + "' to '" + target.tf_frame_id() + "'")
 
         return point
 

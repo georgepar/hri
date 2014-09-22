@@ -7,6 +7,7 @@ import importlib
 import yaml
 from threading import RLock
 from hri_msgs.srv import SetVisibility
+from std_srvs.srv import Empty
 
 
 class HierarchicalEntity():
@@ -84,10 +85,16 @@ class HierarchicalEntityListSource():
         self.children_definitions = []
         self.add_entity_srv = rospy.ServiceProxy('add_entity', AddEntity)
         self.set_visibility_srv = rospy.ServiceProxy('set_visibility', SetVisibility)
+        self.source_sub = None
 
+    def enable(self):
         module = importlib.import_module(self.module_name)
         data_class = getattr(module, self.class_name)
         self.source_sub = rospy.Subscriber(self.topic_name, data_class, self.update_entities, queue_size=10)
+
+    def disable(self):
+        self.source_sub.unregister()
+        self.entities = []
 
     def update_entities(self, msg):
         rospy.loginfo('hello: ' + str(msg))
@@ -167,6 +174,35 @@ class PerceptionSynthesizer(Thread):
         self.sources = PerceptionSynthesizer.parse_yaml(path)
         rospy.loginfo(str(self.sources))
 
+        self.lock = RLock()
+        self.enabled = False
+        self.enable_srv = rospy.Service('perception_synthesiser/enable', Empty, self.enable_callback)
+        self.disable_srv = rospy.Service('perception_synthesiser/disable', Empty, self.disable_callback)
+
+    def enable_callback(self, req):
+        with self.lock:
+            self.enabled = True
+
+            for source in self.sources:
+                    source.enable()
+
+        self.start()
+
+    def disable_callback(self, req):
+        with self.lock:
+            self.enabled = False
+
+    def run(self):
+        while not rospy.is_shutdown():
+            with self.lock:
+                if not self.enabled:
+                    break
+
+                for source in self.sources:
+                    source.publish_transforms()
+
+            self.rate.sleep()
+
     @staticmethod
     def parse_yaml(path):
         with open(path, 'r') as file:
@@ -198,19 +234,10 @@ class PerceptionSynthesizer(Thread):
 
         return sources
 
-    def run(self):
-        while not rospy.is_shutdown():
-            for source in self.sources:
-                source.publish_transforms()
-
-            self.rate.sleep()
 
 if __name__ == '__main__':
     rospy.init_node('perception_synthesiser')
     ps = PerceptionSynthesizer()
-    rospy.loginfo('PerceptionSynthesizer starting...')
-    ps.start()
-    rospy.loginfo('PerceptionSynthesizer started...')
     rospy.spin()
 
 

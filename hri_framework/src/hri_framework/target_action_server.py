@@ -14,6 +14,7 @@ class ITargetActionServer():
         self.action_server = SimpleActionServer(self.action_server_name, TargetAction, auto_start=False)
         self.action_server.register_goal_callback(self.__goal_callback)
         self.origin_frame = rospy.get_param('~origin_frame', 'base_link')
+        self.success_distance = rospy.get_param('~success_distance', 0.2)
         self.end_effector_frame = rospy.get_param('~end_effector_frame', 'gaze')
         self.rate = rospy.Rate(rospy.get_param('~hz', 10))
 
@@ -21,9 +22,9 @@ class ITargetActionServer():
         self.action_server.start()
 
     def __goal_callback(self):
-        gaze_goal = self.action_server.accept_new_goal()
-        rospy.loginfo("Target goal received: " + str(gaze_goal))
-        self.execute(gaze_goal)
+        target_goal = self.action_server.accept_new_goal()
+        rospy.loginfo("Target goal received: " + str(target_goal))
+        self.execute(target_goal)
 
     @abc.abstractmethod
     def execute(self, target_goal):

@@ -3,27 +3,25 @@ from enum import Enum
 
 class IGesture(Enum):
 
-    def default_duration(self):
-        raise NotImplementedError('please implement this method')
+    def __init__(self, default_duration):
+        self.default_duration = default_duration
 
-    def get_data(self):
-        for i in self.data:
-            if self is i[0]:
-                return i
+    def __new__(cls, *args):
+        value = len(cls.__members__) + 1
+        obj = object.__new__(cls)
+        obj._value_ = value
+        return obj
 
 
 class IExpression(Enum):
 
-    def default_duration(self):
-        raise NotImplementedError('please implement this method')
+    def __init__(self, default_duration, default_speed, default_intensity):
+        self.default_duration = default_duration
+        self.default_speed = default_speed
+        self.default_intensity = default_intensity
 
-    def default_speed(self):
-        raise NotImplementedError('please implement this method')
-
-    def default_intensity(self):
-        raise NotImplementedError('please implement this method')
-
-    def get_data(self):
-        for i in self.data:
-            if self is i[0]:
-                return i
+    def __new__(cls, *args):
+        value = len(cls.__members__) + 1
+        obj = object.__new__(cls)
+        obj._value_ = value
+        return obj

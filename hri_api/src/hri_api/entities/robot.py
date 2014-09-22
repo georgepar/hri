@@ -27,14 +27,13 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from hri_msgs.msg import SayToAction, GestureAction, GestureGoal, ExpressionAction, GazeGoal, ExpressionGoal, GazeAction
+from hri_msgs.msg import GestureAction, GestureGoal, ExpressionAction, TargetGoal, ExpressionGoal, TargetAction
 from hri_msgs.srv import TextToSpeechSubsentenceDuration
 import rospy
 from .entity import Entity
 from hri_api.entities import World
 import actionlib
 import threading
-from hri_api.util import RobotConfigParser, SayToParser, GestureDoesNotExistError, FacialExpressionDoesNotExistError
 from hri_api.actions import MultiGoalActionClient
 from hri_api.entities import IGesture, IExpression
 from hri_msgs.msg import TextToSpeechAction, TextToSpeechGoal
@@ -44,6 +43,8 @@ from hri_api.query import Query
 from actionlib import ClientGoalHandle
 import random
 from enum import Enum
+import re
+import xml.etree.ElementTree as ET
 
 
 class ActionHandle():
@@ -74,6 +75,7 @@ class SayToPlan():
 
     def __init__(self):
         self.audience = None
+        self.current_gazee = None
         self.sentence = ''
         self.gesture_lookup = {}
         self.expression_lookup = {}
@@ -105,7 +107,7 @@ class SayToPlan():
 
     @staticmethod
     def num_words(text):
-        return len(re.findall(SayToParser.valid_words_regex, text))
+        return len(re.findall(SayToPlan.valid_words_regex, text))
 
     @staticmethod
     def get_sentence(text):
@@ -135,16 +137,15 @@ class SayToPlan():
 
     def parse_parameters(self, text, audience, expression_enum, gesture_enum, tts_duration_srv):
         self.reset()
+        self.audience = audience
 
         ParamFormatting.assert_types(self.parse_parameters, text, str)
         ParamFormatting.assert_types(self.parse_parameters, audience, Entity, Query)
-        ParamFormatting.assert_types(self.parse_parameters, expression_enum, IExpression)
-        ParamFormatting.assert_types(self.parse_parameters, gesture_enum, IGesture)
 
-        if not is_callable(tts_duration_srv):
-            raise TypeError("parse_parameters() parameter tts_duration_srv={0} is not callable".format(tts_duration_srv))
+        # if not is_callable(tts_duration_srv):
+        #     raise TypeError("parse_parameters() parameter tts_duration_srv={0} is not callable".format(tts_duration_srv))
 
-        self.sentence = SayToParser.get_sentence(text)  # Get sentence
+        self.sentence = SayToPlan.get_sentence(text)  # Get sentence
         self.gaze_change_locations = SayToPlan.get_gaze_change_locations(self.sentence)
 
         # Get expressions and gestures
@@ -204,20 +205,21 @@ class Robot(Entity):
 
     def __init__(self, expression_enum, gesture_enum):
         Entity.__init__(self, Robot.ENTITY_TYPE, Robot.ENTITY_TYPE + str(1), None)
-        #ParamFormatting.assert_types(self.__init__, expression_enum, Expression)
-        #ParamFormatting.assert_types(self.__init__, gesture_enum, Gesture)
-
         self.expression_enum = expression_enum
         self.gesture_enum = gesture_enum
 
-        self.expression_client = MultiGoalActionClient('expression', ExpressionAction)
-        self.gaze_client = actionlib.SimpleActionClient('gaze', GazeAction)
+        self.gaze_client = actionlib.SimpleActionClient('gaze', TargetAction)
+        self.gaze_found = False
+        #self.expression_client = MultiGoalActionClient('expression', ExpressionAction)
         self.tts_client = actionlib.SimpleActionClient('text_to_speech', TextToSpeechAction)
+        self.tts_found = False
+
         self.gesture_client = MultiGoalActionClient('gesture', GestureAction)
-        #self.wait_for_action_servers(self.gaze_client, self.expression_client, self.tts_client, self.gesture_client)
+        self.gesture_found = False
 
         self.tts_duration_srv = rospy.ServiceProxy('tts_subsentence_duration', TextToSpeechSubsentenceDuration)
-        self.wait_for_services(self.tts_duration_srv)
+        self.tts_duration_found = False
+
 
         self.event = None
         self.action_handles = []
@@ -225,6 +227,10 @@ class Robot(Entity):
 
     # Text to speech
     def say(self, text):
+        if not self.tts_found:
+            self.wait_for_action_servers(self.tts_client)
+            self.tts_found = True
+
         ParamFormatting.assert_types(self.say, text, str)
         goal = TextToSpeechGoal()
         goal.sentence = text
@@ -242,12 +248,16 @@ class Robot(Entity):
 
     # Gaze
     def gaze(self, target, speed=0.5):
+        if not self.gaze_found:
+            self.wait_for_action_servers(self.gaze_client)
+            self.gaze_found = True
+
         ParamFormatting.assert_types(self.gaze, target, Entity)
         ParamFormatting.assert_types(self.gaze, speed, float)
         ParamFormatting.assert_range(self.gaze, speed, 0.0, 1.0)
 
         World().add_to_world(target)
-        goal = GazeGoal()
+        goal = TargetGoal()
         goal.target = target.get_id()
         goal.speed = speed
         goal.acceleration = 0.3
@@ -279,24 +289,37 @@ class Robot(Entity):
 
     # Facial expressions
     def expression(self, expression, intensity=None, speed=None, duration=None):
-        ParamFormatting.assert_types(self.expression, expression, IExpression)
+        if not self.expression_found:
+            self.wait_for_action_servers(self.expression_client)
+            self.expression_found = True
 
-        # ParamFormatting.assert_types(self.expression, intensity, float)
-        # ParamFormatting.assert_range(self.expression, intensity, 0.0, 1.0)
-        #
-        # ParamFormatting.assert_types(self.expression, speed, float)
-        # ParamFormatting.assert_range(self.expression, speed, 0.0, 1.0)
-        #
-        # ParamFormatting.assert_types(self.expression, duration, rospy.Duration)
+        ParamFormatting.assert_types(self.expression, expression, IExpression)
 
         goal = ExpressionGoal()
         goal.expression = expression.name
-        goal.intensity = intensity
-        goal.speed = speed
-        goal.duration = duration
+
+        if intensity is None:
+            goal.intensity = -1
+        else:
+            ParamFormatting.assert_types(self.expression, intensity, float)
+            ParamFormatting.assert_range(self.expression, intensity, 0.0, 1.0)
+            goal.intensity = intensity
+
+        if speed is None:
+            goal.speed = -1
+        else:
+            ParamFormatting.assert_types(self.expression, speed, float)
+            ParamFormatting.assert_range(self.expression, speed, 0.0, 1.0)
+            goal.speed = speed
+
+        if duration is None:
+            goal.duration = -1
+        else:
+            ParamFormatting.assert_types(self.expression, duration, float)
+            ParamFormatting.assert_greater_than(self.expression, duration, 0.0)
+            goal.duration = duration
 
         gh = self.expression_client.send_goal(goal, done_cb=self.expression_done)
-
         ah = ActionHandle(self.expression_client, client_goal_handle=gh)
         self.add_action_handle(ah)
         return ah
@@ -310,19 +333,28 @@ class Robot(Entity):
 
     # Gestures
     def gesture(self, gesture, target=None, duration=None):
+        if not self.gesture_found:
+            self.wait_for_action_servers(self.gesture_client)
+            self.gesture_found = True
+
         ParamFormatting.assert_types(self.gesture, gesture, IGesture)
-        #ParamFormatting.assert_types(self.expression, duration, rospy.Duration)
 
         goal = GestureGoal()
         goal.gesture = gesture.name
 
-        if goal.duration:
-            goal.duration = -1
-
-        if target is not None:
+        if target is None:
+            goal.target = ''
+        else:
             World().add_to_world(target)
-            ParamFormatting.assert_types(self.gesture, target, Entity, Query)
+            ParamFormatting.assert_types(self.gesture, target, Entity)
             goal.target = target.get_id()
+
+        if duration is None:
+            goal.duration = -1
+        else:
+            ParamFormatting.assert_types(self.expression, duration, float)
+            ParamFormatting.assert_greater_than(self.expression, duration, 0.0)
+            goal.duration = duration
 
         gh = self.gesture_client.send_goal(goal, done_cb=self.gesture_done)
 
@@ -339,37 +371,51 @@ class Robot(Entity):
 
     # Speaking, gazing and gesturing simultaneously
     def say_to_and_wait(self, text, audience):
-        ParamFormatting.assert_types(self.say_to, text, str)
-        ParamFormatting.assert_types(self.say_to, audience, Entity, Query)
+        if not self.tts_duration_found:
+            self.wait_for_services(self.tts_duration_srv)
+            self.tts_duration_found = True
+
+        ParamFormatting.assert_types(self.say_to_and_wait, text, str)
+        ParamFormatting.assert_types(self.say_to_and_wait, audience, Entity, Query)
 
         self.say_to_plan.parse_parameters(text, audience, self.expression_enum, self.gesture_enum, self.tts_duration_srv)
 
         # Pick a person to gaze at initially
         if isinstance(audience, Entity):
             person = audience
-            self.gaze_and_wait(person)
+            self.gaze_and_wait(person.head)
         else:
             results = audience.sort_ascending(lambda p: p.distance_to(self)).execute()
 
             if len(results) > 0:
                 person = results[0]
-                self.gaze_and_wait(person)
+                self.say_to_plan.current_gazee = person
+                self.gaze_and_wait(person.head)
 
-        self.say_and_wait(text)
+        self.say_and_wait(self.say_to_plan.sentence)
         self.wait(*self.say_to_plan.action_handles)
 
     def say_feedback(self, feedback):
         if feedback.current_word_index in self.say_to_plan.gaze_change_locations:
-            if isinstance(self.audience, Entity):
-                self.gaze(self.audience)
-            else:
-                people = self.audience.execute()
+            if isinstance(self.say_to_plan.audience, Entity):
+                person = self.say_to_plan.audience
+                self.say_to_plan.current_gazee = person
+                self.gaze(person.head)
+
+            elif isinstance(self.say_to_plan.audience, Query):
+                people = self.say_to_plan.audience.execute()
 
                 if len(people) > 1:
-                    person = random.choice(self.people - self.cur_gazee)
-                    self.gaze(person)
+                    #if self.say_to_plan.current_gazee in people:
+                    #    people.remove(self.say_to_plan.current_gazee)
+
+                    person = random.choice(people)
+                    self.say_to_plan.current_gazee = person
+                    self.gaze(person.head)
                 elif len(people) == 1:
-                    self.gaze(people[0])
+                    person = people[0]
+                    self.say_to_plan.current_gazee = person
+                    self.gaze(person.head)
 
         if feedback.current_word_index in self.say_to_plan.expression_lookup:
             expression = self.say_to_plan.expression_lookup[feedback.current_word_num]
@@ -377,7 +423,7 @@ class Robot(Entity):
             self.say_to_plan.add_action_handle(ahs[0])
 
         if feedback.current_word_index in self.say_to_plan.gesture_lookup:
-            gesture = self.say_to_plan.gesture_lookup[feedback.current_word_num]
+            gesture = self.say_to_plan.gesture_lookup[feedback.current_word_index]
             ahs = self.do(gesture)
             self.say_to_plan.add_action_handle(ahs[0])
 
@@ -411,25 +457,25 @@ class Robot(Entity):
                 self.tts_client.send_goal()
                 ah = ActionHandle(self.tts_client)
                 self.add_action_handle(ah)
-                self.action_handles.append(ah)
+                action_handles.append(ah)
 
-            elif isinstance(goal, GazeGoal):
+            elif isinstance(goal, TargetGoal):
                 self.gaze_client.send_goal(goal)
                 ah = ActionHandle(self.gaze_client)
                 self.add_action_handle(ah)
-                self.action_handles.append(ah)
+                action_handles.append(ah)
 
             elif isinstance(goal, ExpressionGoal):
                 gh = self.expression_client.send_goal(goal)
                 ah = ActionHandle(self.expression_client, client_goal_handle=gh)
                 self.add_action_handle(ah)
-                self.action_handles.append(ah)
+                action_handles.append(ah)
 
             elif isinstance(goal, GestureGoal):
                 gh = self.gesture_client.send_goal(goal)
                 ah = ActionHandle(self.gesture_client, client_goal_handle=gh)
                 self.add_action_handle(ah)
-                self.action_handles.append(ah)
+                action_handles.append(ah)
             else:
                 raise TypeError('robot.do parameter goals has a goal with a unsupported type {0}, at index {1}. Should be one of: TextToSpeechGoal, GazeGoal, ExpressionGoal or GestureGoal'.format(type(goal), goals.index(goal)))
 
