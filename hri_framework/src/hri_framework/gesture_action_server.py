@@ -67,10 +67,6 @@ class IGestureActionServer():
         self.remove_gesture_handle(goal_handle)
         rospy.loginfo("Gesture finished id: %s, name: %s",  goal_handle.get_goal_id().id, goal_handle.get_goal().gesture)
 
-    def set_succeeded_on_timeout(self, goal_handle, timeout):
-        gesture_handle = self.get_gesture_handle(goal_handle)
-        gesture_handle.start_timer(timeout, self.set_succeeded, [goal_handle])
-
     def set_aborted(self, goal_handle):
         self.action_server.set_aborted()
         self.remove_gesture_handle(goal_handle)
