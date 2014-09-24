@@ -6,7 +6,22 @@ from threading import Timer
 from hri_framework import MultiGoalActionServer
 
 
+class GestureHandle():
+    def __init__(self, goal_handle, gesture):
+        self.goal_handle = goal_handle
+        self.gesture = gesture
+        self.timer = None
 
+    def goal_id(self):
+        return self.goal_handle.get_goal_id().id
+
+    def start_timer(self, duration, callback, args):
+        self.timer = Timer(duration, callback, args)
+        self.timer.start()
+
+    def stop_timer(self):
+        if self.timer is not None:
+            self.timer.cancel()
 
 
 class IGestureActionServer():
@@ -41,7 +56,8 @@ class IGestureActionServer():
 
     def __preempt_callback(self, goal_handle):
         self.cancel_gesture(goal_handle)
-        self.remove_gesture_handle(goal_handle)
+        gesture_handle = self.get_gesture_handle(goal_handle)
+        self.remove_gesture_handle(gesture_handle)
         rospy.loginfo("Gesture preempted id: %s, name: %s", goal_handle.get_goal_id().id, goal_handle.get_goal().gesture)
 
     @abc.abstractmethod
@@ -64,18 +80,20 @@ class IGestureActionServer():
     def set_succeeded(self, goal_handle):
         """ Call this method when the gesture has finished """
         self.action_server.set_succeeded(goal_handle)
-        self.remove_gesture_handle(goal_handle)
+        gesture_handle = self.get_gesture_handle(goal_handle)
+        self.remove_gesture_handle(gesture_handle)
         rospy.loginfo("Gesture finished id: %s, name: %s",  goal_handle.get_goal_id().id, goal_handle.get_goal().gesture)
 
     def set_aborted(self, goal_handle):
         self.action_server.set_aborted()
-        self.remove_gesture_handle(goal_handle)
+        gesture_handle = self.get_gesture_handle(goal_handle)
+        self.remove_gesture_handle(gesture_handle)
 
     def add_gesture_handle(self, gesture_handle):
-        self.gesture_handle_lookup[gesture_handle.goal_id] = gesture_handle
+        self.gesture_handle_lookup[gesture_handle.goal_id()] = gesture_handle
 
-    def remove_gesture_handle(self, goal_handle):
-        self.gesture_handle_lookup.pop(goal_handle.get_goal_id().id)
+    def remove_gesture_handle(self, gesture_handle):
+        self.gesture_handle_lookup.pop(gesture_handle.goal_id())
 
     def get_gesture_handle(self, goal_handle):
         return self.gesture_handle_lookup[goal_handle.get_goal_id().id]

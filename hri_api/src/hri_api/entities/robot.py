@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # Copyright (c) 2014, James Diprose
 # All rights reserved.
 #
@@ -376,7 +375,7 @@ class Robot(Entity):
             self.tts_duration_found = True
 
         ParamFormatting.assert_types(self.say_to_and_wait, text, str)
-        ParamFormatting.assert_types(self.say_to_and_wait, audience, Entity, Query)
+        ParamFormatting.assert_types(self.say_to_and_wait, audience, Entity, Query, list)
 
         self.say_to_plan.parse_parameters(text, audience, self.expression_enum, self.gesture_enum, self.tts_duration_srv)
 
@@ -385,6 +384,9 @@ class Robot(Entity):
             person = audience
             self.gaze_and_wait(person.head)
         else:
+            if isinstance(audience, list):
+                audience = Query(audience)
+
             results = audience.sort_increasing(lambda p: p.distance_to(self)).execute()
 
             if len(results) > 0:

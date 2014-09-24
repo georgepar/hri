@@ -11,7 +11,8 @@ from hri_api.query import Query
 from hri_api.query import is_callable
 from hri_api.util import Singleton, InitNode
 from hri_msgs.srv import TfFrame, TfFrameResponse, IfQueryableExecute, IfQueryableExecuteResponse, AddEntity, AddEntityResponse, SetVisibility, SetVisibilityResponse
-
+from std_srvs.srv import Empty
+import importlib
 
 class World():
     __metaclass__ = Singleton
@@ -21,32 +22,44 @@ class World():
         self.tf_frame_service = rospy.Service('tf_frame_service', TfFrame, self.tf_frame_service_callback)
         self.if_queryable_execute_service = rospy.Service('if_queryable_execute', IfQueryableExecute, self.if_queryable_execute_callback)
         self.add_entity_srv = rospy.Service('add_entity', AddEntity, self.add_entity_callback)
-        self.set_visibility_srv = rospy.Service('set_visibility', AddEntity, self.set_visibility_callback)
+        self.set_visibility_srv = rospy.Service('set_visibility', SetVisibility, self.set_visibility_callback)
+        self.enable_perception_srv = rospy.ServiceProxy('perception_synthesiser/enable', Empty)
+        self.disable_perception_srv = rospy.ServiceProxy('perception_synthesiser/disable', Empty)
+
+        self.enable_perception_srv.wait_for_service()
+        self.disable_perception_srv.wait_for_service()
 
         self.entity_lock = threading.RLock()
         self.entities = []
         self.entity_id_lookup = {}
         self.entity_classes = {}
 
+        rospy.on_shutdown(self.shutdown)
+        self.enable_perception_srv()
+
     def __iter__(self):
         return iter(self.entities)
 
+    def shutdown(self):
+        self.disable_perception_srv()
+
     def add_entity_callback(self, req):
         with self.entity_lock:
-            if req.entity_type in self.entity_classes:
-                entity = self.entity_classes[req.entity_type].make(req.entity_id)
-                self.add_to_world(entity)
-                resp = AddEntityResponse()
-                resp.global_id = entity.get_id()
-                rospy.logerr('added entity {0} to World'.format(entity))
-                return resp.global_id
-            else:
-                rospy.logerr('entity type {0} does not have an associated class in World'.format(req.entity_type))
+            module = importlib.import_module(req.entity_module)
+            entity_cls = getattr(module, req.entity_class)
+            entity = entity_cls.make(req.local_id)
+
+            self.add_to_world(entity)
+            resp = AddEntityResponse()
+            resp.global_id = entity.get_id()
+            rospy.logerr('added entity {0} to World'.format(entity))
+            return AddEntityResponse(resp.global_id)
 
     def set_visibility_callback(self, req):
         with self.entity_lock:
             entity = self.entity_from_entity_id(req.global_id)
-            entity.visible = req.is_visible
+            entity.set_visible(req.is_visible)
+        return SetVisibilityResponse()
 
     def add_entity_class(self, cls, entity_type):
         self.entity_classes[entity_type] = cls

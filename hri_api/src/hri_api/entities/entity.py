@@ -15,6 +15,7 @@ from hri_api.actions import MultiGoalActionClient
 
 
 class Entity(AbstractEntity):
+
     def __init__(self, entity_type, tf_frame_prefix, parent):
         InitNode()
         self.tl = tf.TransformListener()
@@ -22,6 +23,9 @@ class Entity(AbstractEntity):
         self.tf_frame_prefix = tf_frame_prefix
         self.parent = parent
         self.visible = True
+
+    def __str__(self):
+        return self.tf_frame_id()
 
     def __repr__(self):
         return self.get_id()
@@ -33,6 +37,9 @@ class Entity(AbstractEntity):
 
     def is_visible(self):
         return self.visible
+
+    def set_visible(self, visible):
+        self.visible = visible
 
     def get_id(self):
         return str(id(self))
@@ -98,6 +105,9 @@ class Entity(AbstractEntity):
         origin = Point()
         other = self.translation_to(other_entity)
         return GeomMath.distance_between(origin, other)
+
+    def velocity(self, other_entity):
+        return 0.1
 
     @staticmethod
     def wait_for_services(*services):

@@ -1,4 +1,5 @@
-string entity_type              # The entity type, e.g. person, saliency
-int32 local_id                  # The local_id of the entity (local to its type)
+string entity_module              # The python module that the entity resides in
+string entity_class               # The entities class
+int32 local_id                    # The local_id of the entity (local to its type)
 ---
 string global_id
