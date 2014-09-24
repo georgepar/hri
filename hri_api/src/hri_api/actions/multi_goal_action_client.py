@@ -34,9 +34,9 @@ import time
 import rospy
 from rospy import Header
 from actionlib_msgs.msg import *
-from actionlib.action_client import ActionClient, CommState, get_name_of_constant
-from actionlib.simple_action_client import SimpleActionClient
-from collections import OrderedDict
+from actionlib.action_client import CommState, get_name_of_constant
+from hri_api.actions import ActionClient
+
 
 class SimpleGoalState:
     PENDING = 0
@@ -46,8 +46,7 @@ SimpleGoalState.to_string = classmethod(get_name_of_constant)
 
 
 class ActionHandle():
-    def __init__(self, goal_id, goal_handle, simple_state, done_cb, active_cb, feedback_cb):
-        self.goal_id = goal_id
+    def __init__(self, goal_handle, simple_state, done_cb, active_cb, feedback_cb):
         self.goal_handle = goal_handle
         self.simple_state = simple_state
         self.done_cb = done_cb
@@ -56,6 +55,9 @@ class ActionHandle():
         self.done_condition = threading.Condition()
         self.cleanup_start_time = None
         self.duration_inactive = None
+
+    def goal_id(self):
+        return self.goal_handle.comm_state_machine.action_goal.goal_id.id
 
 
 class MultiGoalActionClient:
@@ -135,8 +137,7 @@ class MultiGoalActionClient:
 
     def send_goal(self, goal, done_cb=None, active_cb=None, feedback_cb=None):
         goal_handle = self.action_client.send_goal(goal, self._handle_transition, self._handle_feedback)
-        goal_id = self.get_goal_id(goal_handle)
-        action_handle = ActionHandle(goal_id, goal_handle, SimpleGoalState.PENDING, done_cb, active_cb, feedback_cb)
+        action_handle = ActionHandle(goal_handle, SimpleGoalState.PENDING, done_cb, active_cb, feedback_cb)
         self.add_action_handle(action_handle)
         return goal_handle
 
@@ -156,8 +157,11 @@ class MultiGoalActionClient:
     ##
     ## @return The goal's state.
     def send_goal_and_wait(self, goal, execute_timeout=rospy.Duration(), preempt_timeout=rospy.Duration()):
-        self.send_goal(goal)
-        if not self.wait_for_result(execute_timeout):
+        goal_handle = self.send_goal(goal)
+        action_handle = ActionHandle(goal_handle, SimpleGoalState.PENDING, done_cb=None, active_cb=None, feedback_cb=None)
+        self.add_action_handle(action_handle)
+
+        if not self.wait_for_result(goal_handle, execute_timeout):
             # preempt action
             rospy.logdebug("Canceling goal")
             self.cancel_goal()
@@ -171,10 +175,9 @@ class MultiGoalActionClient:
     ## @param timeout Max time to block before returning. A zero timeout is interpreted as an infinite timeout.
     ## @return True if the goal finished. False if the goal didn't finish within the allocated timeout
     def wait_for_result(self, goal_handle, timeout=rospy.Duration()):
-        with self.action_handles_lock:
-            if not self.is_tracking_goal(goal_handle):
-                rospy.logerr("Called wait_for_goal_to_finish when no goal exists")
-                return False
+        if not self.is_tracking_goal(goal_handle):
+            rospy.logerr("Called wait_for_result when no goal exists")
+            return False
 
         action_handle = self.get_action_handle(goal_handle)
 
@@ -199,7 +202,8 @@ class MultiGoalActionClient:
 
     ## @brief Gets the Result of the current goal
     def get_result(self, goal_handle):
-        return goal_handle.get_result()
+        with self.action_handles_lock:
+            return goal_handle.get_result()
 
     ## @brief Get the state information for this goal
     ##
@@ -256,30 +260,31 @@ class MultiGoalActionClient:
             if self.is_tracking_goal(goal_handle):
                 goal_handle.cancel()
 
-    def get_goal_id(self, goal_handle):
-        return goal_handle.comm_state_machine.action_goal.goal_id
-
     def add_action_handle(self, action_handle):
         with self.action_handles_lock:
-            self.action_handles[action_handle.goal_id] = action_handle
+            self.action_handles[action_handle.goal_id()] = action_handle
 
     def get_action_handle(self, goal_handle):
         with self.action_handles_lock:
             if self.is_tracking_goal(goal_handle):
-                goal_id = self.get_goal_id(goal_handle)
+                goal_id = self.goal_id(goal_handle)
                 return self.action_handles[goal_id]
             else:
-                return None
+                rospy.logerr('Error, not tracking goal')
+
+    def goal_id(self, goal_handle):
+        with self.action_handles_lock:
+            return goal_handle.comm_state_machine.action_goal.goal_id.id
 
     def is_tracking_goal(self, goal_handle):
         with self.action_handles_lock:
-            goal_id = self.get_goal_id(goal_handle)
+            goal_id = self.goal_id(goal_handle)
             return goal_id in self.action_handles
 
     def _handle_transition(self, goal_handle):
-        comm_state = goal_handle.get_comm_state()
-
         with self.action_handles_lock:
+            comm_state = goal_handle.get_comm_state()
+
             action_handle = self.get_action_handle(goal_handle)
 
             error_msg = "Received comm state %s when in simple state %s with SimpleActionClient in NS %s" % \
