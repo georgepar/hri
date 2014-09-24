@@ -385,7 +385,7 @@ class Robot(Entity):
             person = audience
             self.gaze_and_wait(person.head)
         else:
-            results = audience.sort_ascending(lambda p: p.distance_to(self)).execute()
+            results = audience.sort_increasing(lambda p: p.distance_to(self)).execute()
 
             if len(results) > 0:
                 person = results[0]

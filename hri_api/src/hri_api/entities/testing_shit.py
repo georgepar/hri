@@ -15,7 +15,7 @@ people = Query(world).select_type(Person)
 close_to_robot = people.select_where(lambda p: p.distance_to(zeno) < 1)
 
 
-closest_to_robot = people.sort_ascending(lambda p: p.distance_to(zeno)).take(1)
+closest_to_robot = people.sort_increasing(lambda p: p.distance_to(zeno)).take(1)
 closest_to_robot.subscribe(closest_person_changed)
 
 

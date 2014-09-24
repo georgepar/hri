@@ -1,4 +1,4 @@
-# Copyright (c) 2011-2014 Robert Smallshire, Jamie Diprose
+# Copyright (c) 2011-2014 Robert Smallshire
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -43,25 +43,25 @@ class TestOrderBy(unittest.TestCase):
 
     def test_order_by(self):
         a = [27, 74, 18, 48, 57, 97, 76, 20, 91, 8, 80, 59, 20, 32, 58, 12, 74, 78, 4]
-        b = Query(a).sort_ascending().execute()
+        b = Query(a).sort_increasing().execute()
         c = [4, 8, 12, 18, 20, 20, 27, 32, 48, 57, 58, 59, 74, 74, 76, 78, 80, 91, 97]
         self.assertEqual(b, c)
 
     def test_order_by2(self):
         a = [1, 9, 7, 2, 5, 4, 6, 3, 8, 10]
-        b = Query(a).sort_ascending().execute()
+        b = Query(a).sort_increasing().execute()
         c = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         self.assertEqual(b, c)
 
     def test_order_by_key(self):
         a = ['Sort', 'words', 'by', 'length']
-        b = Query(a).sort_ascending(len).execute()
+        b = Query(a).sort_increasing(len).execute()
         c = ['by', 'Sort', 'words', 'length']
         self.assertEqual(b, c)
 
     def test_order_by_not_callable(self):
         a = ['Sort', 'words', 'by', 'length']
-        self.assertRaises(TypeError, lambda: Query(a).sort_ascending("not callable"))
+        self.assertRaises(TypeError, lambda: Query(a).sort_increasing("not callable"))
 
     def test_order_by_stability(self):
         a = [1, 2, 3]
@@ -85,7 +85,7 @@ class TestOrderBy(unittest.TestCase):
             pre_order_c_d = sgn(pre_index_c - pre_index_d)
             pre_order_e_f = sgn(pre_index_e - pre_index_f)
 
-            post_perm = Query(pre_perm).sort_ascending().execute()
+            post_perm = Query(pre_perm).sort_increasing().execute()
 
             post_index_a = index_by_identity(post_perm, a)
             post_index_b = index_by_identity(post_perm, b)
@@ -104,50 +104,50 @@ class TestOrderBy(unittest.TestCase):
 
     def test_then_by(self):
         a = ['sort', 'these', 'words', 'by', 'length', 'and', 'then', 'lexicographically']
-        b = Query(a).sort_ascending(len).then_by_ascending().execute()
+        b = Query(a).sort_increasing(len).then_increasing().execute()
         c = ['by', 'and', 'sort', 'then', 'these', 'words', 'length', 'lexicographically']
         self.assertEqual(b, c)
 
     def test_then_by_key(self):
         a = ['sort', 'using', 'third', 'letter', 'then', 'second']
-        b = Query(a).sort_ascending(lambda x: x[2]).then_by_ascending(lambda y: y[1]).execute()
+        b = Query(a).sort_increasing(lambda x: x[2]).then_increasing(lambda y: y[1]).execute()
         c = ['second', 'then', 'third', 'using', 'sort', 'letter']
         self.assertEqual(b, c)
 
     def test_then_by_not_callable(self):
         a = ['sort', 'using', 'third', 'letter', 'then', 'second']
-        b = Query(a).sort_ascending(lambda x: x[2])
-        self.assertRaises(TypeError, lambda: b.then_by_ascending("not callable"))
+        b = Query(a).sort_increasing(lambda x: x[2])
+        self.assertRaises(TypeError, lambda: b.then_increasing("not callable"))
 
     def test_order_by_descending(self):
         a = [1, 9, 7, 2, 5, 4, 6, 3, 8, 10]
-        b = Query(a).sort_descending().execute()
+        b = Query(a).sort_decreasing().execute()
         c = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
         self.assertEqual(b, c)
 
     def test_order_by_descending_key(self):
         a = ['Sort', 'words', 'by', 'length']
-        b = Query(a).sort_descending(len).execute()
+        b = Query(a).sort_decreasing(len).execute()
         c = ['length', 'words', 'Sort', 'by']
         self.assertEqual(b, c)
 
     def test_order_by_descending_not_callable(self):
         a = ['Sort', 'words', 'by', 'length']
-        self.assertRaises(TypeError, lambda: Query(a).sort_descending("not callable"))
+        self.assertRaises(TypeError, lambda: Query(a).sort_decreasing("not callable"))
 
     def test_then_by_descending(self):
         a = ['sort', 'these', 'words', 'by', 'length', 'and', 'then', 'lexicographically']
-        b = Query(a).sort_ascending(len).then_by_descending().execute()
+        b = Query(a).sort_increasing(len).then_decreasing().execute()
         c = ['by', 'and', 'then', 'sort', 'words', 'these', 'length', 'lexicographically']
         self.assertEqual(b, c)
 
     def test_then_by_descending_key(self):
         a = ['sort', 'using', 'third', 'letter', 'then', 'second']
-        b = Query(a).sort_ascending(lambda x: x[2]).then_by_descending(lambda y: y[1]).execute()
+        b = Query(a).sort_increasing(lambda x: x[2]).then_decreasing(lambda y: y[1]).execute()
         c = ['second', 'then', 'using', 'third', 'sort', 'letter']
         self.assertEqual(b, c)
 
     def test_then_by_descending_not_callable(self):
         a = ['sort', 'using', 'third', 'letter', 'then', 'second']
-        b = Query(a).sort_ascending(lambda x: x[2])
-        self.assertRaises(TypeError, lambda: b.then_by_descending("not callable"))
+        b = Query(a).sort_increasing(lambda x: x[2])
+        self.assertRaises(TypeError, lambda: b.then_decreasing("not callable"))

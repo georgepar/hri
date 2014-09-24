@@ -1,4 +1,4 @@
-# Copyright (c) 2014 Robert Smallshire, Jamie Diprose
+# Copyright (c) 2014 Robert Smallshire
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -55,7 +55,7 @@ class Query(object):
 
     def select_type(self, classinfo):
         if not is_type(classinfo):
-            raise TypeError("of_type() parameter classinfo={0} is not a class "
+            raise TypeError("select_type() parameter classinfo={0} is not a class "
                 "object or a type objector a tuple of class or "
                 "type entities.".format(classinfo))
 
@@ -63,24 +63,24 @@ class Query(object):
 
     def select_where(self, predicate):
         if not is_callable(predicate):
-            raise TypeError("select() parameter predicate={predicate} is not "
+            raise TypeError("select_where() parameter predicate={predicate} is not "
                                   "callable".format(predicate=repr(predicate)))
 
         return Query(self, func=lambda: itertools.ifilter(predicate, self))
 
-    def sort_ascending(self, key_selector=identity):
-        if not is_callable(key_selector):
-            raise TypeError("order_by_ascending() parameter key_selector={key_selector} "
-                    "is not callable".format(key_selector=repr(key_selector)))
+    def sort_increasing(self, key=identity):
+        if not is_callable(key):
+            raise TypeError("sort_increasing() parameter key_selector={key_selector} "
+                    "is not callable".format(key_selector=repr(key)))
 
-        return OrderedQuery(self, -1, key_selector)
+        return OrderedQuery(self, -1, key)
 
-    def sort_descending(self, key_selector=identity):
-        if not is_callable(key_selector):
-            raise TypeError("order_by_descending() parameter key_selector={0} "
-                            "is not callable".format(repr(key_selector)))
+    def sort_decreasing(self, key=identity):
+        if not is_callable(key):
+            raise TypeError("sort_decreasing() parameter key_selector={0} "
+                            "is not callable".format(repr(key)))
 
-        return OrderedQuery(self, 1, key_selector)
+        return OrderedQuery(self, 1, key)
 
     def take(self, n):
         Util.assert_type(n, (int, long))
@@ -118,7 +118,7 @@ class OrderedQuery(Query):
         super(OrderedQuery, self).__init__(iterable)
         self.funcs = [(order, func)]
 
-    def then_by_ascending(self, key_selector=identity):
+    def then_increasing(self, key=identity):
         '''Introduce subsequent ordering to the sequence with an optional key.
 
         The returned sequence will be sorted in ascending order by the
@@ -140,14 +140,14 @@ class OrderedQuery(Query):
             TypeError: If key_selector is not callable.
         '''
 
-        if not is_callable(key_selector):
-            raise TypeError("then_by() parameter key_selector={key_selector} "
-                    "is not callable".format(key_selector=repr(key_selector)))
+        if not is_callable(key):
+            raise TypeError("then_increasing() parameter key_selector={key_selector} "
+                    "is not callable".format(key_selector=repr(key)))
 
-        self.funcs.append((-1, key_selector))
+        self.funcs.append((-1, key))
         return self
 
-    def then_by_descending(self, key_selector=identity):
+    def then_decreasing(self, key=identity):
         '''Introduce subsequent ordering to the sequence with an optional key.
 
         The returned sequence will be sorted in descending order by the
@@ -169,10 +169,10 @@ class OrderedQuery(Query):
             TypeError: If key_selector is not callable.
         '''
 
-        if not is_callable(key_selector):
-            raise TypeError("then_by_descending() parameter key_selector={key_selector} is not callable".format(key_selector=repr(key_selector)))
+        if not is_callable(key):
+            raise TypeError("then_decreasing() parameter key_selector={key_selector} is not callable".format(key_selector=repr(key)))
 
-        self.funcs.append((+1, key_selector))
+        self.funcs.append((+1, key))
         return self
 
     def __iter__(self):
