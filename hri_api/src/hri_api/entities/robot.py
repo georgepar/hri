@@ -529,7 +529,7 @@ class Robot(Entity):
             if isinstance(self.say_to_plan.audience, Entity):
                 person = self.say_to_plan.audience
                 self.say_to_plan.current_gazee = person
-                self.gaze(person.head)
+                self.say_to_plan.gaze_ah = self.gaze(person.head)
 
             elif isinstance(self.say_to_plan.audience, Query):
                 people = self.say_to_plan.audience.execute()
@@ -540,11 +540,11 @@ class Robot(Entity):
 
                     person = random.choice(people)
                     self.say_to_plan.current_gazee = person
-                    ah = self.gaze(person.head)
+                    self.say_to_plan.gaze_ah = self.gaze(person.head)
                 elif len(people) == 1:
                     person = people[0]
                     self.say_to_plan.current_gazee = person
-                    self.gaze(person.head)
+                    self.say_to_plan.gaze_ah = self.gaze(person.head)
 
         if feedback.current_word_index in self.say_to_plan.expression_lookup:
             expression = self.say_to_plan.expression_lookup[feedback.current_word_num]
@@ -564,7 +564,7 @@ class Robot(Entity):
     def get_action_handle(self, goal_handle):
         with self.lock:
             for ah in self.action_handles:
-                if not isinstance(ah, SingleGoalActionHandle):
+                if isinstance(ah, MultiGoalActionHandle):
                     if ah.goal_handle == goal_handle:
                         return ah
 

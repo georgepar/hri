@@ -24,8 +24,8 @@ class Entity(AbstractEntity):
         self.parent = parent
         self.visible = True
 
-    def __str__(self):
-        return self.tf_frame_id()
+    # def __str__(self):
+    #     return self.tf_frame_id()
 
     def __repr__(self):
         return self.get_id()
