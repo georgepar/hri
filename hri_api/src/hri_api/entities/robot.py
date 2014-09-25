@@ -45,6 +45,7 @@ from enum import Enum
 import re
 import xml.etree.ElementTree as ET
 from threading import Thread
+from std_msgs.msg import String
 
 
 class IActionHandle():
@@ -334,6 +335,21 @@ class Robot(Entity):
         self.say_ah = None
 
         self.lock = threading.RLock()
+        self.listen_cb = None
+        self.listen_sub = None
+
+    def register_listen_callback(self, callback):
+        self.listen_cb = callback
+        self.listen_sub = rospy.Subscriber("itf_listen", String, self.__listen, queue_size=10)
+
+    def __listen(self, msg):
+
+        if msg.data == 'BADINPUT':
+            text = None
+        else:
+            text = msg.data
+
+        self.listen_cb(text)
 
     # Text to speech
     def say(self, text):
@@ -587,7 +603,7 @@ class Robot(Entity):
                     self.add_action_handle(ah)
                     action_handles.append(ah)
                 else:
-                    raise TypeError('robot.do parameter goals has a goal with a unsupported type {0}, at index {1}. Should be one of: TextToSpeechGoal, GazeGoal, ExpressionGoal or GestureGoal'.format(type(goal), goals.index(goal)))
+                    raise TypeError('robot.do parameter goals has a goal with a unsupported type {0}, at index {1}. Should be one of: TextToSpeechGoal, TargetGoal, ExpressionGoal or GestureGoal'.format(type(goal), goals.index(goal)))
 
         return action_handles
 
