@@ -44,27 +44,65 @@ import random
 from enum import Enum
 import re
 import xml.etree.ElementTree as ET
+from threading import Thread
 
 
-class ActionHandle():
-    def __init__(self, action_client, client_goal_handle=None):
+class IActionHandle():
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self):
+        pass
+
+    @abc.abstractmethod
+    def cancel_action(self):
+        """
+        :return:
+        """
+
+    @abc.abstractmethod
+    def wait_for_result(self):
+        """
+
+        :return:
+        """
+
+
+class SingleGoalActionHandle(IActionHandle):
+    def __init__(self, action_client):
+        IActionHandle.__init__(self)
         self.action_client = action_client
-        self.client_goal_handle = client_goal_handle
-
-        if isinstance(self.action_client, MultiGoalActionClient) and self.client_goal_handle is None:
-            raise TypeError("If is action_client is MultiGoalActionClient then client_goal_handle must be specified (currently None)")
 
     def cancel_action(self):
-        if isinstance(self.action_client, actionlib.SimpleActionClient):
-            self.action_client.cancel_goal()
-        elif isinstance(self.action_client, MultiGoalActionClient):
-            self.action_client.cancel_goal(self.client_goal_handle)
+        self.action_client.cancel_goal()
 
     def wait_for_result(self):
-        if isinstance(self.action_client, actionlib.SimpleActionClient):
-            self.action_client.wait_for_result()
-        elif isinstance(self.action_client, MultiGoalActionClient):
-            self.action_client.wait_for_result(self.client_goal_handle)
+        self.action_client.wait_for_result()
+
+
+class MultiGoalActionHandle(IActionHandle):
+    def __init__(self, action_client, goal_handle):
+        IActionHandle.__init__(self)
+        self.action_client = action_client
+        self.goal_handle = goal_handle
+
+    def cancel_action(self):
+        self.action_client.cancel_goal(self.goal_handle)
+
+    def wait_for_result(self):
+        self.action_client.wait_for_result(self.goal_handle)
+
+
+class SayToActionHandle(IActionHandle):
+
+    def __init__(self, say_to_plan):
+        IActionHandle.__init__(self)
+        self.say_to_plan = say_to_plan
+
+    def cancel_action(self):
+        self.say_to_plan.cancel()
+
+    def wait_for_result(self):
+        self.say_to_plan.wait()
 
 
 class SayToPlan():
@@ -72,25 +110,92 @@ class SayToPlan():
     punctuation = "[' ']"
     spaces = "[,.]"
 
-    def __init__(self):
+    def __init__(self, robot):
+        self.robot = robot
         self.audience = None
         self.current_gazee = None
         self.sentence = ''
         self.gesture_lookup = {}
         self.expression_lookup = {}
         self.gaze_change_locations = {}
-        self.action_handles = []
+
+        self.say_ah = None
+        self.gaze_ah = None
+        self.other_ahs = []
+        self.preempt_requested = False
+        self.lock = threading.RLock()
+        self.thread = None
 
     def reset(self):
         self.audience = None
+        self.current_gazee = None
         self.sentence = ''
         self.gesture_lookup = {}
         self.expression_lookup = {}
         self.gaze_change_locations = {}
-        self.action_handles = []
+
+        self.say_ah = None
+        self.gaze_ah = None
+        self.other_ahs = []
+        self.preempt_requested = False
+        self.lock = threading.RLock()
+        self.thread = None
+
+    def wait(self):
+        self.thread.join()
+        self.robot.wait(self.say_ah)
+        self.robot.wait(*self.other_ahs)
+
+    def cancel(self, robot):
+        with self.lock:
+            self.preempt_requested = True
+
+            if self.say_ah:
+                robot.cancel(self.gaze_ah)
+
+            if self.gaze_ah:
+                robot.cancel(self.gaze_ah)
+
+            self.robot.cancel(*self.other_ahs)
+
+    def execute(self):
+        self.thread = Thread(target=self.__execute)
+        self.thread.start()
+        return SayToActionHandle(self)
+
+    def __execute(self):
+        audience = self.audience
+
+        # Pick a person to gaze at initially
+        if isinstance(audience, Entity):
+            person = audience
+
+            with self.lock:
+                if not self.preempt_requested:
+                    self.gaze_ah = self.robot.gaze(person.head)
+        else:
+            if isinstance(audience, list):
+                audience = Query(audience)
+
+            results = audience.sort_increasing(lambda p: p.distance_to(self.robot)).execute()
+
+            if len(results) > 0:
+                person = results[0]
+                self.current_gazee = person
+
+                with self.lock:
+                    if not self.preempt_requested:
+                        self.gaze_ah = self.robot.gaze(person.head)
+
+        if self.gaze_ah is not None:
+            self.robot.wait(self.gaze_ah)
+
+        with self.lock:
+            if not self.preempt_requested:
+                self.say_ah = self.robot.say(self.sentence)
 
     def add_action_handle(self, action_handle):
-        self.action_handles.append(action_handle)
+        self.other_ahs.append(action_handle)
 
     @staticmethod
     def get_gaze_change_locations(text):
@@ -209,7 +314,10 @@ class Robot(Entity):
 
         self.gaze_client = actionlib.SimpleActionClient('gaze', TargetAction)
         self.gaze_found = False
-        #self.expression_client = MultiGoalActionClient('expression', ExpressionAction)
+
+        self.expression_client = MultiGoalActionClient('expression', ExpressionAction)
+        self.expression_found = False
+
         self.tts_client = actionlib.SimpleActionClient('text_to_speech', TextToSpeechAction)
         self.tts_found = False
 
@@ -219,10 +327,13 @@ class Robot(Entity):
         self.tts_duration_srv = rospy.ServiceProxy('tts_subsentence_duration', TextToSpeechSubsentenceDuration)
         self.tts_duration_found = False
 
-
         self.event = None
         self.action_handles = []
-        self.say_to_plan = SayToPlan()
+        self.say_to_plan = SayToPlan(self)
+        self.gaze_ah = None
+        self.say_ah = None
+
+        self.lock = threading.RLock()
 
     # Text to speech
     def say(self, text):
@@ -234,7 +345,8 @@ class Robot(Entity):
         goal = TextToSpeechGoal()
         goal.sentence = text
         self.tts_client.send_goal(goal, feedback_cb=self.say_feedback, done_cb=self.say_done)
-        ah = ActionHandle(self.tts_client)
+        ah = SingleGoalActionHandle(self.tts_client)
+        self.say_ah = ah
         self.add_action_handle(ah)
         return ah
 
@@ -243,7 +355,9 @@ class Robot(Entity):
         self.tts_client.wait_for_result()
 
     def say_done(self, state, result):
-        self.remove_action_handle(action_client=self.tts_client)
+        with self.lock:
+            self.remove_action_handle(self.say_ah)
+            self.say_ah = None
 
     # Gaze
     def gaze(self, target, speed=0.5):
@@ -262,7 +376,8 @@ class Robot(Entity):
         goal.acceleration = 0.3
 
         self.gaze_client.send_goal(goal, feedback_cb=self.gaze_feedback, done_cb=self.gaze_done)
-        ah = ActionHandle(self.gaze_client)
+        ah = SingleGoalActionHandle(self.gaze_client)
+        self.gaze_ah = ah
         self.add_action_handle(ah)
         return ah
 
@@ -274,7 +389,9 @@ class Robot(Entity):
         pass
 
     def gaze_done(self, state, result):
-        self.remove_action_handle(action_client=self.gaze_client)
+        with self.lock:
+            self.remove_action_handle(self.gaze_ah)
+            self.gaze_ah = None
 
     # Blinking
     def blink(self, blink_duration, blink_rate_mean, blink_rate_sd):
@@ -319,16 +436,18 @@ class Robot(Entity):
             goal.duration = duration
 
         gh = self.expression_client.send_goal(goal, done_cb=self.expression_done)
-        ah = ActionHandle(self.expression_client, client_goal_handle=gh)
+        ah = MultiGoalActionHandle(self.expression_client, gh)
         self.add_action_handle(ah)
         return ah
 
     def expression_and_wait(self, expression, intensity=None, speed=None, duration=None, timeout=rospy.Duration()):
         ah = self.expression(expression, intensity, speed, duration)
-        self.expression_client.wait_for_result(ah.client_goal_handle, timeout)
+        self.expression_client.wait_for_result(ah.goal_handle, timeout)
 
     def expression_done(self, goal_handle):
-        self.remove_action_handle(goal_handle=goal_handle)
+        with self.lock:
+            ah = self.get_action_handle(goal_handle)
+            self.remove_action_handle(ah)
 
     # Gestures
     def gesture(self, gesture, target=None, duration=None):
@@ -357,45 +476,37 @@ class Robot(Entity):
 
         gh = self.gesture_client.send_goal(goal, done_cb=self.gesture_done)
 
-        ah = ActionHandle(self.gesture_client, client_goal_handle=gh)
+        ah = MultiGoalActionHandle(self.gesture_client, gh)
         self.add_action_handle(ah)
         return ah
 
     def gesture_and_wait(self, gesture, target=None, duration=None, timeout=rospy.Duration()):
         ah = self.gesture(gesture, target, duration)
-        self.gesture_client.wait_for_result(ah.client_goal_handle, timeout)
+        self.gesture_client.wait_for_result(ah.goal_handle, timeout)
 
     def gesture_done(self, goal_handle):
-        self.remove_action_handle(goal_handle=goal_handle)
+        with self.lock:
+            ah = self.get_action_handle(goal_handle)
+            self.remove_action_handle(ah)
 
     # Speaking, gazing and gesturing simultaneously
-    def say_to_and_wait(self, text, audience):
+    def say_to(self, text, audience):
         if not self.tts_duration_found:
             self.wait_for_services(self.tts_duration_srv)
             self.tts_duration_found = True
 
-        ParamFormatting.assert_types(self.say_to_and_wait, text, str)
-        ParamFormatting.assert_types(self.say_to_and_wait, audience, Entity, Query, list)
+        ParamFormatting.assert_types(self.say_to, text, str)
+        ParamFormatting.assert_types(self.say_to, audience, Entity, Query, list)
 
         self.say_to_plan.parse_parameters(text, audience, self.expression_enum, self.gesture_enum, self.tts_duration_srv)
 
-        # Pick a person to gaze at initially
-        if isinstance(audience, Entity):
-            person = audience
-            self.gaze_and_wait(person.head)
-        else:
-            if isinstance(audience, list):
-                audience = Query(audience)
+        ah = self.say_to_plan.execute()
+        self.add_action_handle(ah)
+        return ah
 
-            results = audience.sort_increasing(lambda p: p.distance_to(self)).execute()
-
-            if len(results) > 0:
-                person = results[0]
-                self.say_to_plan.current_gazee = person
-                self.gaze_and_wait(person.head)
-
-        self.say_and_wait(self.say_to_plan.sentence)
-        self.wait(*self.say_to_plan.action_handles)
+    def say_to_and_wait(self, text, audience):
+        ah = self.say_to(text, audience)
+        self.wait(ah)
 
     def say_feedback(self, feedback):
         if feedback.current_word_index in self.say_to_plan.gaze_change_locations:
@@ -413,7 +524,7 @@ class Robot(Entity):
 
                     person = random.choice(people)
                     self.say_to_plan.current_gazee = person
-                    self.gaze(person.head)
+                    ah = self.gaze(person.head)
                 elif len(people) == 1:
                     person = people[0]
                     self.say_to_plan.current_gazee = person
@@ -430,70 +541,67 @@ class Robot(Entity):
             self.say_to_plan.add_action_handle(ahs[0])
 
     def add_action_handle(self, action_handle):
-        ParamFormatting.assert_types(self.add_action_handle, action_handle, ActionHandle)
-        self.action_handles.append(action_handle)
+        with self.lock:
+            ParamFormatting.assert_types(self.add_action_handle, action_handle, IActionHandle)
+            self.action_handles.append(action_handle)
 
-    def remove_action_handle(self, action_handle=None, action_client=None, goal_handle=None):
-        if action_handle is not None:
-            ParamFormatting.assert_types(self.remove_action_handle, action_handle, ActionHandle)
-            self.action_handles.remove(action_handle)
-
-        if action_client is not None:
-            ParamFormatting.assert_types(self.remove_action_handle, action_client, actionlib.SimpleActionClient)
-
+    def get_action_handle(self, goal_handle):
+        with self.lock:
             for ah in self.action_handles:
-                if ah.action_client is action_client:
-                    self.action_handles.remove(ah)
-        elif goal_handle is not None:
-            ParamFormatting.assert_types(self.remove_action_handle, goal_handle, ClientGoalHandle)
+                if not isinstance(ah, SingleGoalActionHandle):
+                    if ah.goal_handle == goal_handle:
+                        return ah
 
-            for ah in self.action_handles:
-                if ah.client_goal_handle is goal_handle:
-                    self.action_handles.remove(ah)
+    def remove_action_handle(self, action_handle):
+        with self.lock:
+            ParamFormatting.assert_types(self.remove_action_handle, action_handle, IActionHandle)
+            if action_handle in self.action_handles:
+                    self.action_handles.remove(action_handle)
 
     def do(self, *goals):
         action_handles = []
 
-        for goal in goals:
-            if isinstance(goal, TextToSpeechGoal):
-                self.tts_client.send_goal()
-                ah = ActionHandle(self.tts_client)
-                self.add_action_handle(ah)
-                action_handles.append(ah)
+        with self.lock:
+            for goal in goals:
+                if isinstance(goal, TextToSpeechGoal):
+                    self.tts_client.send_goal(goal)
+                    ah = SingleGoalActionHandle(self.tts_client)
+                    self.add_action_handle(ah)
+                    action_handles.append(ah)
 
-            elif isinstance(goal, TargetGoal):
-                self.gaze_client.send_goal(goal)
-                ah = ActionHandle(self.gaze_client)
-                self.add_action_handle(ah)
-                action_handles.append(ah)
+                elif isinstance(goal, TargetGoal):
+                    self.gaze_client.send_goal(goal)
+                    ah = SingleGoalActionHandle(self.gaze_client)
+                    self.add_action_handle(ah)
+                    action_handles.append(ah)
 
-            elif isinstance(goal, ExpressionGoal):
-                gh = self.expression_client.send_goal(goal)
-                ah = ActionHandle(self.expression_client, client_goal_handle=gh)
-                self.add_action_handle(ah)
-                action_handles.append(ah)
+                elif isinstance(goal, ExpressionGoal):
+                    gh = self.expression_client.send_goal(goal)
+                    ah = MultiGoalActionHandle(self.expression_client, gh)
+                    self.add_action_handle(ah)
+                    action_handles.append(ah)
 
-            elif isinstance(goal, GestureGoal):
-                gh = self.gesture_client.send_goal(goal)
-                ah = ActionHandle(self.gesture_client, client_goal_handle=gh)
-                self.add_action_handle(ah)
-                action_handles.append(ah)
-            else:
-                raise TypeError('robot.do parameter goals has a goal with a unsupported type {0}, at index {1}. Should be one of: TextToSpeechGoal, GazeGoal, ExpressionGoal or GestureGoal'.format(type(goal), goals.index(goal)))
+                elif isinstance(goal, GestureGoal):
+                    gh = self.gesture_client.send_goal(goal)
+                    ah = MultiGoalActionHandle(self.gesture_client, gh)
+                    self.add_action_handle(ah)
+                    action_handles.append(ah)
+                else:
+                    raise TypeError('robot.do parameter goals has a goal with a unsupported type {0}, at index {1}. Should be one of: TextToSpeechGoal, GazeGoal, ExpressionGoal or GestureGoal'.format(type(goal), goals.index(goal)))
 
         return action_handles
 
     # Wait for one or more goals to finish
     def wait(self, *action_handles):
         for ah in action_handles:
-            ParamFormatting.assert_types(self.wait, ah, ActionHandle)
+            ParamFormatting.assert_types(self.wait, ah, IActionHandle)
             ah.wait_for_result()
             self.remove_action_handle(action_handle=ah)
 
     # Cancel one or more goals
     def cancel(self, *action_handles):
         for ah in action_handles:
-            ParamFormatting.assert_types(self.wait, ah, ActionHandle)
+            ParamFormatting.assert_types(self.wait, ah, IActionHandle)
             ah.cancel_action()
             self.remove_action_handle(action_handle=ah)
 

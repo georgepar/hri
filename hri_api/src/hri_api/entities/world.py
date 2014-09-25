@@ -14,6 +14,7 @@ from hri_msgs.srv import TfFrame, TfFrameResponse, IfQueryableExecute, IfQueryab
 from std_srvs.srv import Empty
 import importlib
 
+
 class World():
     __metaclass__ = Singleton
 
@@ -52,7 +53,7 @@ class World():
             self.add_to_world(entity)
             resp = AddEntityResponse()
             resp.global_id = entity.get_id()
-            rospy.logerr('added entity {0} to World'.format(entity))
+            rospy.loginfo('added entity {0} to World'.format(entity))
             return AddEntityResponse(resp.global_id)
 
     def set_visibility_callback(self, req):
