@@ -3,7 +3,7 @@
 
 The Human-Robot Interaction API provides high level classes and functions designed specifically for programming human-robot interaction.
 
-![](https://rawgit.com/uoa-robotics/hri/master/hri/documentation/hri_api_overview.svg)
+![](https://rawgit.com/uoa-robotics/hri/master/hri/documentation/api_overview.svg)
 
 ## Tutorials for supported robots:
 The following list contains tutorials that explain how to program human-robot interaction for a number of different robots, including: 
