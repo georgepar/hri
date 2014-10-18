@@ -1,6 +1,3 @@
-# Welcome to the Human-Robot Interaction API!
-===
-
 The Human-Robot Interaction API is a high level, domain specific API designed for programming human-robot interaction, making it easy to create  human-robot interaction applications. It has been designed specifically to meet the requirements of human-robot interaction and contains high level interfaces for controlling: robot actions, subscribing to social communication and representing and querying perception data.
 
 ![](https://rawgit.com/uoa-robotics/hri/master/hri/documentation/api_overview.svg)
