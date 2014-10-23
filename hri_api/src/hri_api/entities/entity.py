@@ -67,6 +67,19 @@ class Entity(AbstractEntity):
         return point
 
     def is_infront_of(self, other_entity):
+        """
+
+        Check if self is in front of other_entity
+
+        :param self: dfsdf
+        :type self: Entity
+        :param other_entity: sdfsd
+        :type other_entity: Entity
+        :return: whether this assertion is true or not
+        :rtype: bool
+        :raises TypeError: entity is not of type Entity
+        """
+
         if not isinstance(other_entity, AbstractEntity):
             raise TypeError("is_infront_of() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity))
 

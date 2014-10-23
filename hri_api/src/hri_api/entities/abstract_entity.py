@@ -29,12 +29,15 @@
 import abc
 
 
+
+
 class AbstractEntity(object):
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
     def is_infront_of(self, other_entity):
-        """ Return whether 'self' is in front of 'other_entity' """
+
+
         return
 
     @abc.abstractmethod
