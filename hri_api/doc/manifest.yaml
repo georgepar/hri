@@ -1,0 +1,20 @@
+actions: []
+authors: Jamie Diprose <jamie.diprose@gmail.com>
+brief: ''
+bugtracker: ''
+depends:
+- std_srvs
+- actionlib
+- std_msgs
+- python-catkin-pkg
+- rospy
+- tf
+- catkin
+description: The hri_api package
+license: BSD
+maintainers: Jamie Diprose <jamie.diprose@gmail.com>
+msgs: []
+package_type: package
+repo_url: ''
+srvs: []
+url: ''
