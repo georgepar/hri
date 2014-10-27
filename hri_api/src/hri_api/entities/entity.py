@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-import roslib
-roslib.load_manifest('hri_api')
-from .abstract_entity import AbstractEntity
 import tf
 import rospy
 from geometry_msgs.msg import Point
@@ -12,115 +9,238 @@ import abc
 import math
 from hri_api.util import InitNode
 from hri_api.actions import MultiGoalActionClient
+import uuid
+from hri_api.util import ParamFormatting
+import sys
+import enum
 
 
-class Entity(AbstractEntity):
+class NamingScheme(enum):
 
-    def __init__(self, entity_type, tf_frame_prefix, parent):
+    Flat = 1
+    Hierarchical = 2
+
+
+class Entity(object):
+
+    def __init__(self, local_frame_id, parent, naming_scheme=NamingScheme.Hierarchical):
         InitNode()
+
+        ParamFormatting.assert_types(self.__init__, local_frame_id, str)
+        ParamFormatting.assert_types(self.__init__, parent, Entity)
+        ParamFormatting.assert_types(self.__init__, naming_scheme, NamingScheme)
+
         self.tl = tf.TransformListener()
-        self.entity_type = entity_type
-        self.tf_frame_prefix = tf_frame_prefix
+        self.local_frame_id = local_frame_id
         self.parent = parent
         self.visible = True
+        self._global_id = str(uuid.uuid4())
+        self.naming_scheme = naming_scheme
+        self.children = []
 
-    # def __str__(self):
-    #     return self.tf_frame_id()
+        # Adds self to parent to create parent -> child relationship
+        if parent is not None:
+            parent.add_child(self)
 
-    def __repr__(self):
-        return self.get_id()
+    def add_child(self, child):
+        """
 
-    def __eq__(self, other):
-        if self.tf_frame_id() == other.tf_frame_id():
-            return True
-        return False
+        Adds a child to the entity.
 
-    def is_visible(self):
-        return self.visible
+        :param child: the child
+        :type child: Entity
+        :raises TypeError: child must be a subtype of Entity
+        """
 
-    def set_visible(self, visible):
-        self.visible = visible
+        ParamFormatting.assert_types(self.add_child, child, Entity)
+        self.children.append(child)
 
-    def get_id(self):
-        return str(id(self))
+    @property
+    def global_id(self):
+        """
 
-    def default_tf_frame_id(self):
-        raise NotImplementedError("Please implement this method")
+        :return: Get the entities global id. The global id is used to uniquely identify the entity. Note that this  It uniquely identifies this entit
+        :rtype: str
+        """
 
-    def tf_frame_id(self):
-        if self.parent is None:
-            return self.tf_frame_prefix
-        else:
-            return self.parent.tf_frame_id() + '_' + self.tf_frame_prefix
+        return self._global_id
+
+    @classmethod
+    def make(cls, local_id):
+        """
+
+        Instantiate a derived Entity class, e.g. Person(local_id) and return it.
+
+        :param local_id: the id that uniquely identifies the entity amongst all entities of the same type
+        :type local_id: int
+        :return: the entity instance
+        :rtype: Entity
+        :raises NotImplementedError: please implement this method
+        """
+
+        raise NotImplementedError('please implement this method')
+
+    def default_body_part(self):
+        """
+
+        Gets the default body part to use for math calculations. Only applicable to entities with children.
+
+        :return: the default body part to use for math calculations.
+        :rtype: Entity
+        :raises NotImplementedError: please implement this method
+        """
+
+        if self.parent is None and len(self.children) > 0:
+            raise NotImplementedError("Please implement this method")
+
+    def global_frame_id(self, depth=0):
+        """
+
+        Gets the global frame id. Only applicable to entities with children.
+
+        :return: the default body part to use for math calculations.
+        :rtype: str
+        :raises NotImplementedError: please implement this method
+        """
+
+        if self.naming_scheme is NamingScheme.Flat:
+            return self.local_frame_id
+
+        elif self.naming_scheme is NamingScheme.Hierarchical:
+            if depth == 0 and self.parent is None and len(self.children) > 0:
+                return self.default_body_part().global_frame_id()
+
+            elif depth == 0 and self.parent is None:
+                return self.local_frame_id
+
+            else:
+                return self.parent.global_frame_id(depth + 1) + '_' + self.local_frame_id
 
     def translation_to(self, target):
-        if not isinstance(target, AbstractEntity):
-            raise TypeError("translation_to() parameter target={0} is not a subclass of AbstractEntity".format(target))
+        ParamFormatting.assert_types(self.translation_to, target, Entity)
 
         try:
-            (trans, rot) = self.tl.lookupTransform(self.default_tf_frame_id(), target.default_tf_frame_id(), rospy.Time())
+            (trans, rot) = self.tl.lookupTransform(self.default_body_part(), target.default_body_part(), rospy.Time())
             point = Point(trans[0], trans[1], trans[2])
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             point = Point()
-            rospy.loginfo("Couldn't transform from '" + self.tf_frame_id() + "' to '" + target.tf_frame_id() + "'")
+            rospy.loginfo("Couldn't transform from '" + self.global_frame_id() + "' to '" + target.global_frame_id() + "'")
 
         return point
 
-    def is_infront_of(self, other_entity):
+    def infront_of(self, entity):
         """
 
-        Check if self is in front of other_entity
+        Check if the current instance is in front of entity
 
-        :param self: dfsdf
-        :type self: Entity
-        :param other_entity: sdfsd
-        :type other_entity: Entity
+        :param entity:
+        :type entity: Entity
         :return: whether this assertion is true or not
         :rtype: bool
         :raises TypeError: entity is not of type Entity
         """
 
-        if not isinstance(other_entity, AbstractEntity):
-            raise TypeError("is_infront_of() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity))
+        ParamFormatting.assert_types(self.infront_of, entity, Entity)
 
         origin = Point()
-        other = self.translation_to(other_entity)
-        return GeomMath.is_infront_of(other, origin)
+        other = self.translation_to(entity)
 
-    def is_behind(self, other_entity):
-        if not isinstance(other_entity, AbstractEntity):
-            raise TypeError("is_behind() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity))
+        if other.x >= origin.x:
+            return True
+        return False
 
-        origin = Point()
-        other = self.translation_to(other_entity)
-        return GeomMath.is_behind(other, origin)
+    def behind(self, entity):
+        """
 
-    def is_left_of(self, other_entity):
-        if not isinstance(other_entity, AbstractEntity):
-            raise TypeError("is_behind() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity))
+        Check if the current instance is behind entity
 
-        origin = Point()
-        other = self.translation_to(other_entity)
-        return GeomMath.is_left_of(other, origin)
+        :param entity:
+        :type entity: Entity
+        :return: whether this assertion is true or not
+        :rtype: bool
+        :raises TypeError: entity is not of type Entity
+        """
 
-    def is_right_of(self, other_entity):
-        if not isinstance(other_entity, AbstractEntity):
-            raise TypeError("is_right_of() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity))
+        ParamFormatting.assert_types(self.behind, entity, Entity)
 
         origin = Point()
-        other = self.translation_to(other_entity)
-        return GeomMath.is_right_of(other, origin)
+        other = self.translation_to(entity)
 
-    def distance_to(self, other_entity):
-        if not isinstance(other_entity, AbstractEntity):
-            raise TypeError("distance_to() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity))
+        if other.x < origin.x:
+            return True
+        return False
+
+    def left_of(self, entity):
+        """
+
+        Check if the current instance is left_of entity
+
+        :param entity:
+        :type entity: Entity
+        :return: whether this assertion is true or not
+        :rtype: bool
+        :raises TypeError: entity is not of type Entity
+        """
+
+        ParamFormatting.assert_types(self.left_of, entity, Entity)
 
         origin = Point()
-        other = self.translation_to(other_entity)
-        return GeomMath.distance_between(origin, other)
+        other = self.translation_to(entity)
 
-    def velocity(self, other_entity):
-        return 0.1
+        if other.y >= origin.y:
+            return True
+        return False
+
+    def right_of(self, entity):
+        """
+
+        Check if the current instance is right_of entity
+
+        :param entity:
+        :type entity: Entity
+        :return: whether this assertion is true or not
+        :rtype: bool
+        :raises TypeError: entity is not of type Entity
+        """
+
+        ParamFormatting.assert_types(self.right_of, entity, Entity)
+
+        origin = Point()
+        other = self.translation_to(entity)
+
+        if other.y < origin.y:
+            return True
+        return False
+
+    def distance_to(self, entity):
+        """
+
+        Calculate the distance from the current instance to entity
+
+        :param entity:
+        :type entity: Entity
+        :return: the distance from the instance to entity
+        :rtype: float
+        :raises TypeError: entity is not of type Entity
+        """
+
+        ParamFormatting.assert_types(self.distance_to, entity, Entity)
+
+        origin = Point()
+        other = self.translation_to(entity)
+
+        x_diff = origin.x - other.x
+        y_diff = origin.y - other.y
+        z_diff = origin.z - other.z
+        return math.sqrt(x_diff * x_diff + y_diff * y_diff + z_diff * z_diff)
+
+    def __repr__(self):
+        return self.global_id
+
+    def __eq__(self, other):
+        if self.global_id == other.global_id:
+            return True
+        return False
 
     @staticmethod
     def wait_for_services(*services):
@@ -147,9 +267,3 @@ class Entity(AbstractEntity):
 
         rospy.loginfo("All action servers found")
 
-    @classmethod
-    def make(cls, entity_num):
-        """
-        make a class and return it
-        """
-        raise NotImplementedError('Please implement my make method')

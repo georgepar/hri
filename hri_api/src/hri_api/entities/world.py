@@ -1,29 +1,38 @@
-#! /usr/bin/env python
-
-import roslib; roslib.load_manifest('hri_api')
 import rospy
-from std_msgs.msg import UInt16MultiArray
-#from hri_api.srv import ExecuteQuery, GazeID, GestureID, IsQueryable, TFID, ExecuteQueryResponse, GazeIDResponse, GestureIDResponse, TFIDResponse, IsQueryableResponse
 from hri_msgs.msg import EntityMsg, EntityListMsg
 import threading
 from hri_api.entities import Entity
 from hri_api.query import Query
-from hri_api.query import is_callable
 from hri_api.util import Singleton, InitNode
 from hri_msgs.srv import TfFrame, TfFrameResponse, IfQueryableExecute, IfQueryableExecuteResponse, AddEntity, AddEntityResponse, SetVisibility, SetVisibilityResponse
 from std_srvs.srv import Empty
 import importlib
+from hri_api.util import ParamFormatting
 
 
 class World():
+    """The World class provides access to the entities perceived by the robots perception system. The World class
+    is iterable, meaning that it can be iterated over just as a list or array can.
+
+    Vendor specific perception algorithms communicate with the World instance via the APIs perception interface,
+    composed of a the perception synthesiser node and the ROS tf library. The perception synthesiser tells the World
+    when to create objects to represent perceived entities and the ROS tf library manages object coordinates.
+
+    .. note::
+        The World class uses the singleton design pattern. Once the World class has been instantiated, a reference
+        to this instance will be returned if the constructor is called again: http://en.wikipedia.org/wiki/Singleton_pattern
+
+    """
+
     __metaclass__ = Singleton
 
     def __init__(self):
+
         InitNode()
-        self.tf_frame_service = rospy.Service('tf_frame_service', TfFrame, self.tf_frame_service_callback)
-        self.if_queryable_execute_service = rospy.Service('if_queryable_execute', IfQueryableExecute, self.if_queryable_execute_callback)
-        self.add_entity_srv = rospy.Service('add_entity', AddEntity, self.add_entity_callback)
-        self.set_visibility_srv = rospy.Service('set_visibility', SetVisibility, self.set_visibility_callback)
+        self.tf_frame_service = rospy.Service('tf_frame_service', TfFrame, self.__tf_frame_service_callback)
+        self.if_queryable_execute_service = rospy.Service('if_queryable_execute', IfQueryableExecute, self.__if_queryable_execute_callback)
+        self.add_entity_srv = rospy.Service('add_entity', AddEntity, self.__add_entity_callback)
+        self.set_visibility_srv = rospy.Service('set_visibility', SetVisibility, self.__set_visibility_callback)
         self.enable_perception_srv = rospy.ServiceProxy('perception_synthesiser/enable', Empty)
         self.disable_perception_srv = rospy.ServiceProxy('perception_synthesiser/disable', Empty)
 
@@ -32,19 +41,29 @@ class World():
 
         self.entity_lock = threading.RLock()
         self.entities = []
-        self.entity_id_lookup = {}
-        self.entity_classes = {}
+        self.global_id_lookup = {}
 
-        rospy.on_shutdown(self.shutdown)
+        rospy.on_shutdown(self.__shutdown)
         self.enable_perception_srv()
 
     def __iter__(self):
         return iter(self.entities)
 
-    def shutdown(self):
+    @staticmethod
+    def to_entity_list_msg(entities):
+        entity_list_msg = EntityListMsg()
+
+        for entity in entities:
+            entity_msg = EntityMsg()
+            entity_msg.entity_id = entity.global_id()
+            entity_list_msg.entities.append(entity_msg)
+
+        return entity_list_msg
+
+    def __shutdown(self):
         self.disable_perception_srv()
 
-    def add_entity_callback(self, req):
+    def __add_entity_callback(self, req):
         with self.entity_lock:
             module = importlib.import_module(req.entity_module)
             entity_cls = getattr(module, req.entity_class)
@@ -52,50 +71,46 @@ class World():
 
             self.add_to_world(entity)
             resp = AddEntityResponse()
-            resp.global_id = entity.get_id()
+            resp.global_id = entity.global_id()
             rospy.loginfo('added entity {0} to World'.format(entity))
             return AddEntityResponse(resp.global_id)
 
-    def set_visibility_callback(self, req):
+    def __set_visibility_callback(self, req):
         with self.entity_lock:
-            entity = self.entity_from_entity_id(req.global_id)
+            entity = self.entity_from_global_id(req.global_id)
             entity.set_visible(req.is_visible)
         return SetVisibilityResponse()
 
-    def add_entity_class(self, cls, entity_type):
-        self.entity_classes[entity_type] = cls
-
     def add_to_world(self, entity):
-        entity_id = entity.get_id()
+        ParamFormatting.assert_types(self.add_to_world, entity, Entity, Query)
+
+        global_id = entity.global_id()
 
         if isinstance(entity, Entity):
-            if entity_id not in self.entity_id_lookup:
-                self.entity_id_lookup[entity_id] = entity
+            if global_id not in self.global_id_lookup:
+                self.global_id_lookup[global_id] = entity
                 self.entities.append(entity)
-                rospy.logdebug("Added entity with entity_id: %s", entity_id)
+                rospy.logdebug("Added entity with global_id: %s", global_id)
         elif isinstance(entity, Query):
-            if entity_id not in self.entity_id_lookup:
-                self.entity_id_lookup[entity_id] = entity
-                rospy.logdebug("Added query with entity_id: %s", entity_id)
+            if global_id not in self.global_id_lookup:
+                self.global_id_lookup[global_id] = entity
+                rospy.logdebug("Added query with global_id: %s", global_id)
+
+    def entity_from_global_id(self, global_id):
+        ParamFormatting.assert_types(self.entity_from_global_id, global_id, str)
+        self.entity_from_global_id.
+        if global_id in self.global_id_lookup:
+            return self.global_id_lookup[global_id]
         else:
-            raise TypeError("add_to_world() parameter entity={0} is not a subclass of Entity or Query".format(entity))
+            raise IndexError("World.{0}() parameter global_id={1} is not in self.global_id_lookup".format(self.entity_from_global_id.__name__, global_id))
 
-    def entity_from_entity_id(self, entity_id):
-        if not isinstance(entity_id, str):
-            raise TypeError("get_entity_from_entity_id() parameter entity_id={0} is not a int".format(entity_id))
-
-        if entity_id in self.entity_id_lookup:
-            return self.entity_id_lookup[entity_id]
-        else:
-            raise IndexError("get_entity_from_entity_id() parameter entity_id={0} is not in self.entity_id_lookup".format(entity_id))
-
-    def tf_frame_service_callback(self, req):
-        entity = self.entity_from_entity_id(req.entity_id)
-        tf_frame = entity.tf_frame_id()
+    def __tf_frame_service_callback(self, req):
+        entity = self.entity_from_global_id(req.entity_id)
+        tf_frame = entity.global_frame_id()
         return TfFrameResponse(tf_frame)
 
-    def if_queryable_execute_callback(self, req):
-        entity = self.entity_from_entity_id(req.entity_id)
+    def __if_queryable_execute_callback(self, req):
+        entity = self.entity_from_global_id(req.entity_id)
         response = IfQueryableExecuteResponse()
 
         if isinstance(entity, Query):
@@ -106,14 +121,3 @@ class World():
             response.is_queryable = False
 
         return response
-
-    @staticmethod
-    def to_entity_list_msg(entities):
-        entity_list_msg = EntityListMsg()
-
-        for entity in entities:
-            entity_msg = EntityMsg()
-            entity_msg.entity_id = entity.get_id()
-            entity_list_msg.entities.append(entity_msg)
-
-        return entity_list_msg

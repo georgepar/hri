@@ -1,4 +1,4 @@
-# Copyright (c) 2014 Robert Smallshire
+# Copyright (c) 2011 Robert Smallshire
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,9 +20,6 @@
 
 import itertools
 import heapq
-import threading
-import inspect
-import rospy
 from hri_api.math import Util
 from .selectors import identity
 from .types import (is_iterable, is_type)

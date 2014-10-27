@@ -14,5 +14,5 @@ class TestSaliency(TestCase):
         msg.type = 'saliency'
         msg.number = 1
         saliency = Saliency.create_saliency(msg)
-        self.assertEqual(saliency.tf_frame_id(), 'saliency_1')
-        self.assertEqual(saliency.default_tf_frame_id() , 'saliency_1')
+        self.assertEqual(saliency.global_frame_id(), 'saliency_1')
+        self.assertEqual(saliency.default_body_part() , 'saliency_1')

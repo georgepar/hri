@@ -20,8 +20,8 @@ class TestGeomMath(TestCase):
         self.assertEqual(distance, math.sqrt(3))
 
     def test_is_infront_of(self):
-        self.assertTrue(GeomMath.is_infront_of(self.infront, self.center))
-        self.assertFalse(GeomMath.is_infront_of(self.behind, self.center))
+        self.assertTrue(GeomMath.infront_of(self.infront, self.center))
+        self.assertFalse(GeomMath.infront_of(self.behind, self.center))
 
     def test_is_behind(self):
         self.assertTrue(GeomMath.is_behind(self.behind, self.center))
