@@ -27,7 +27,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from hri_api.entities import Entity
-from hri_api.util import ParamFormatting
+from hri_api.util import ParamAssertions
 
 
 class Person(Entity):
@@ -53,7 +53,7 @@ class Person(Entity):
         """
 
         # Check types
-        ParamFormatting.assert_types(self.__init__, local_id, int)
+        ParamAssertions.assert_types(self.__init__, local_id, int)
 
         # Call the superclass constructor
         Entity.__init__(self, 'person' + str(local_id), None)

@@ -26,8 +26,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from hri_msgs.msg import GestureAction, GestureGoal, ExpressionAction, TargetGoal, TargetAction
-from hri_msgs.msg import ExpressionGoal as IExpressionGoal
+from hri_msgs.msg import GestureAction, GestureGoal, ExpressionAction, TargetGoal, ExpressionGoal, TargetAction
 from hri_msgs.srv import TextToSpeechSubsentenceDuration
 import rospy
 from .entity import Entity
@@ -47,7 +46,62 @@ import re
 import xml.etree.ElementTree as ET
 from threading import Thread
 from std_msgs.msg import String
-import weakref
+from collections import Callable
+
+
+class IActionHandle():
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self):
+        pass
+
+    @abc.abstractmethod
+    def cancel_action(self):
+        """
+        :return:
+        """
+
+    @abc.abstractmethod
+    def wait_for_result(self):
+        """
+
+        :return:
+        """
+
+class SingleGoalActionHandle(IActionHandle):
+    def __init__(self, action_client):
+        IActionHandle.__init__(self)
+        self.action_client = action_client
+
+    def cancel_action(self):
+        self.action_client.cancel_goal()
+
+    def wait_for_result(self):
+        self.action_client.wait_for_result()
+
+
+class MultiGoalActionHandle(IActionHandle):
+    def __init__(self, action_client, goal_handle):
+        IActionHandle.__init__(self)
+        self.action_client = action_client
+        self.goal_handle = goal_handle
+
+    def cancel_action(self):
+        self.action_client.cancel_goal(self.goal_handle)
+
+    def wait_for_result(self):
+        self.action_client.wait_for_result(self.goal_handle)
+
+
+class Default(object):
+    """ Represents the default value for parameters in the gesture and expression class,
+
+    """
+    pass
+
+from enum import Enum
+
+
 
 
 class Robot(Entity):
@@ -62,38 +116,59 @@ class Robot(Entity):
 
     """
 
-    __metaclass__ = abc.ABCMeta
+    local_id = 0    # Id counter for robot classes
+    SERVER_TIMEOUT = 5.0    # Timeout for connecting to action servers and services
 
-    def __init__(self, expressions=None, gestures=None):
+    def __init__(self):
+        self.local_id = Robot.local_id
+        Robot.local_id += 1
+        Entity.__init__(self, 'robot{0}'.format(self.local_id), None)
 
-        Entity.__init__(self, 'robot' + str(1), None)
-        self.expressions = expressions
-        self.gestures = gestures
+        robot_actions = Robot.read_supported_actions()
+        robot_services = Robot.read_supported_services()
 
-        # Create the action and service proxies that connect to robot specific action servers and services.
-        #TODO: read topics from a config file, if not found then that action / service wont be used
+        self.say_found = False
+        self.gaze_found = False
+        self.gesture_found = False
+        self.expression_found = False
+        self.say_duration_found = False
 
+        # Create the action and service proxies that connect to vendor specific action servers and services.
+        if SayAction.__name__ in robot_actions:
+            namespace = robot_actions[SayAction.__name__]['namespace']
+            self.say_client = actionlib.SimpleActionClient(namespace, SayAction)
+            self.say_found = Robot.wait_for_action_server(self.say_client, SayAction.__name__, namespace)
+        else:
+            self.say_client = None
 
-        self.say_client = actionlib.SimpleActionClient('text_to_speech', SayAction)
-        self.say_done_cbm = CallbackManager()
-        self.say_feedback_cbm = CallbackManager()
+        if GazeAction.__name__ in robot_actions:
+            namespace = robot_actions[GazeAction.__name__]['namespace']
+            self.gaze_client = actionlib.SimpleActionClient(namespace, TargetAction)
+            self.gaze_found = Robot.wait_for_action_server(self.gaze_client, GazeAction.__name__, namespace)
+        else:
+            self.gaze_client = None
 
-        self.gaze_client = actionlib.SimpleActionClient('gaze', TargetAction)
-        self.gaze_done_cbm = CallbackManager()
-        self.gaze_feedback_cbm = CallbackManager()
+        if GestureAction.__name__ in robot_actions:
+            namespace = robot_actions[GestureAction.__name__]['namespace']
+            self.gesture_client = MultiGoalActionClient(namespace, GestureAction)
+            self.gesture_found = Robot.wait_for_action_server(self.gesture_client, GestureAction.__name__, namespace)
+        else:
+            self.gesture_client = None
 
-        self.expression_client = MultiGoalActionClient('expression', ExpressionAction)
-        self.expression_done_cbm = CallbackManager()
-        self.expression_feedback_cbm = CallbackManager()
+        if ExpressionAction.__name__ in robot_actions:
+            namespace = robot_actions[Action.expression.name]['namespace']
+            self.expression_client = MultiGoalActionClient(namespace, ExpressionAction)
+            self.expression_found = Robot.wait_for_action_server(self.gesture_client, ExpressionAction.__name__, namespace)
+        else:
+            self.expression_client = None
 
-        self.gesture_client = MultiGoalActionClient('gesture', GestureAction)
-        self.gesture_done_cbm = CallbackManager()
-        self.gesture_feedback_cbm = CallbackManager()
+        if SayDuration.__name__ in robot_services:
+            name = robot_services[SayDuration.__name__]['name']
+            self.say_duration_srv = rospy.ServiceProxy(namespace, SayDuration)
+            self.say_duration_found = Robot.wait_for_service(self.say_duration_srv, SayDuration.__name__, name)
+        else:
+            self.say_duration_srv = None
 
-        self.say_duration_srv = rospy.ServiceProxy('say_duration', SayDuration)
-
-        self.event = None
-        self.action_handles = []
         self.gaze_ah = None
         self.say_ah = None
 
@@ -101,7 +176,8 @@ class Robot(Entity):
         self.listen_cb = None
         self.listen_sub = None
 
-        self.gesture_done_cbm = CallbackManager()
+    def default_body_part(self):
+        raise NotImplementedError("Please implement this method")
 
     def register_listen_callback(self, callback):
         self.listen_cb = callback
@@ -116,8 +192,9 @@ class Robot(Entity):
 
         self.listen_cb(text)
 
-    # Text to speech
-    def say(self, text):
+    @requires(str, (None, Callable), (None, Callable))
+    @returns(SingleGoalActionHandle)
+    def say(self, text, feedback_cb=None, done_cb=None):
         """ Synthesise the text in the string text. This function is asynchronous; it returns an ActionHandle, a
         unique identifier for the action being performed. An action handle can be used to wait for an action to complete
         or to cancel an action
@@ -129,16 +206,16 @@ class Robot(Entity):
         :raises TypeError: text is not a str
         """
 
-        ParamFormatting.assert_types(self.say, text, str)
-        goal = TextToSpeechGoal()
-        goal.sentence = text
-        self.say_client.send_goal(goal, feedback_cb=self.__say_feedback, done_cb=self.__say_done)
-        ah = SingleGoalActionHandle(self.say_client)
-        self.say_ah = ah
-        self.add_action_handle(ah)
-        return ah
+        if Robot.is_action_runnable(self.say_client, SayAction.__name__, self.say_found):
+            ParamAssertions.assert_types(self.say, text, str)
+            goal = TextToSpeechGoal()
+            goal.sentence = text
+            self.say_client.send_goal(goal, feedback_cb, done_cb)
+            ah = SingleGoalActionHandle(self.say_client)
+            self.say_ah = ah
+            return ah
 
-    def say_and_wait(self, text):
+    def say_and_wait(self, text, feedback_cb=None, done_cb=None):
         """ A synchronous version of the say function. The and_wait syntax signals that the function will not return
         until it completes. No ActionHandle is returned because the action completes before it returns.
 
@@ -146,60 +223,17 @@ class Robot(Entity):
         :type text: str
         """
 
-        self.say(text)
+        self.say(text, feedback_cb, done_cb)
         self.say_client.wait_for_result()
 
-    def __say_done(self, state, result):
-        self.say_done_cbm.execute()
-
-        with self.lock:
-            self.remove_action_handle(self.say_ah)
-            self.say_ah = None
-
-    def add_say_done_callback(self, callback):
-        """Register a callback, it will be fired when the say action finishes
-
-        :param callback: The callback to add
-        :type callback: callable
-        """
-
-        self.say_done_cbm.add_callback(callback)
-
-    def remove_say_done_callback(self, callback):
-        """Remove a callback that was registered to fire when the say action finished
-
-        :param callback: The callback to remove
-        :type callback: callable
-        """
-        self.say_done_cbm.remove_callback(callback)
-
-    def __say_feedback(self, feedback):
-        self.say_feedback_cbm.execute(feedback.current_word_index)
-
-    def register_say_feedback_callback(self, callback):
-        """Register a callback, it will be fired when feedback is generated from the say action
-
-        :param callback: The callback to add
-        :type callback: callable
-        """
-
-        self.say_feedback_cbm.add_callback(callback)
-
-    def remove_say_feedback_callback(self, callback):
-        """Remove a callback that was registered to fire when feedback was generated from the say action
-
-        :param callback: The callback to remove
-        :type callback: callable
-        """
-
-        self.say_feedback_cbm.remove_callback(callback)
-
-    def gaze(self, target, speed=0.5):
+    @requires(Entity, float, (None, Callable), (None, Callable))
+    @returns(SingleGoalActionHandle)
+    def gaze(self, head_target, speed=0.5, feedback_cb=None, done_cb=None):
         """ Makes the robot gaze at a target. The speed that the robot gazes at is controlled by the speed parameter.
         This function is asynchronous and returns an ActionHandle to keep track of the action.
 
-        :param target: The target to gaze at
-        :type target: Entity
+        :param head_target: The target to gaze at
+        :type head_target: Entity
         :param speed: The speed of the gaze action (normalised between 0.0 < speed <= 1.0)
         :type speed: float
         :return: an action handle to keep track of the action
@@ -207,23 +241,23 @@ class Robot(Entity):
         :raises TypeError: target is not an Entity, speed is not a float or speed is not within the range 0.0 < speed <= 1.0
         """
 
-        ParamFormatting.assert_types(self.gaze, target, Entity)
-        ParamFormatting.assert_types(self.gaze, speed, float)
-        ParamFormatting.assert_range(self.gaze, speed, 0.0, 1.0)
+        if Robot.is_action_runnable(self.gaze_client, GazeAction.__name__, self.gaze_found):
+            ParamAssertions.assert_types(self.gaze, head_target, Entity)
+            ParamAssertions.assert_types(self.gaze, speed, float)
+            ParamAssertions.assert_range(self.gaze, speed, 0.0, 1.0)
 
-        World().add_to_world(target)
-        goal = TargetGoal()
-        goal.target = target.global_id()
-        goal.speed = speed
-        goal.acceleration = 0.3
+            World().add_to_world(head_target)
+            goal = TargetGoal()
+            goal.target = head_target.get_id()
+            goal.speed = speed
+            goal.acceleration = 0.3
 
-        self.gaze_client.send_goal(goal, feedback_cb=self.__gaze_feedback, done_cb=self.__gaze_done)
-        ah = SingleGoalActionHandle(self.gaze_client)
-        self.gaze_ah = ah
-        self.add_action_handle(ah)
-        return ah
+            self.gaze_client.send_goal(goal, feedback_cb=feedback_cb, done_cb=done_cb)
+            ah = SingleGoalActionHandle(self.gaze_client)
+            self.gaze_ah = ah
+            return ah
 
-    def gaze_and_wait(self, target, speed=0.5, timeout=rospy.Duration()):
+    def gaze_and_wait(self, target, speed=0.5, feedback_cb=None, done_cb=None):
         """ A synchronous version of the gaze function. No ActionHandle is returned because the action completes
         before it returns.
 
@@ -235,52 +269,45 @@ class Robot(Entity):
         :type timeout: rospy.Duration
         """
 
-        self.gaze(target, speed)
-        self.gaze_client.wait_for_result(timeout)
+        self.gaze(target, speed, feedback_cb=feedback_cb, done_cb=done_cb)
+        self.gaze_client.wait_for_result()
 
-    def __gaze_feedback(self, feedback):
-        self.gaze_feedback_cbm.execute(feedback.distance_to_target)
+    @requires(IGesture, (float, Default), (None, Entity), (None, Callable), (None, Callable))
+    @returns(MultiGoalActionHandle)
+    def gesture(self, gesture, duration=Default, target=None, feedback_cb=None, done_cb=None):
 
-    def register_gaze_feedback_callback(self, callback):
-        """Register a callback, it will be fired when feedback is generated from the gaze action
+        if Robot.is_action_runnable(self.gesture_client, GestureAction.__name__, self.gesture_found):
+            ParamAssertions.assert_types(self.gesture, gesture, IGesture)
 
-        :param callback: The callback to add
-        :type callback: callable
-        """
+            goal = GestureGoal()
+            goal.gesture = gesture.name
 
-        self.gaze_feedback_cbm.add_callback(callback)
+            if target is None:
+                goal.target = ''
+            else:
+                World().add_to_world(target)
+                ParamAssertions.assert_types(self.gesture, target, Entity)
+                goal.target = target.get_id()
 
-    def remove_gaze_feedback_callback(self, callback):
-        """Remove a callback that was registered to fire when feedback was generated from the gaze action
+            if duration is None:
+                goal.duration = -1
+            else:
+                ParamAssertions.assert_types(self.expression, duration, float)
+                ParamAssertions.assert_greater_than(self.expression, duration, 0.0)
+                goal.duration = duration
 
-        :param callback: The callback to remove
-        :type callback: callable
-        """
+            gh = self.gesture_client.send_goal(goal, feedback_cb=feedback_cb, done_cb=done_cb)
 
-        self.gaze_feedback_cbm.remove_callback(callback)
+            ah = MultiGoalActionHandle(self.gesture_client, gh)
+            return ah
 
-    def __gaze_done(self, state, result):
-        self.gaze_done_cbm.execute()
-        self.gaze_ah = None
+    def gesture_and_wait(self, gesture, duration=Default, target=None, feedback_cb=None, done_cb=None):
+        ah = self.gesture(gesture, duration, target, feedback_cb, done_cb)
+        self.gesture_client.wait_for_result(ah.goal_handle)
 
-    def register_gaze_done_callback(self, callback):
-        """Register a callback, it will be fired when the  gaze action finishes
-
-        :param callback: The callback to add
-        :type callback: callable
-        """
-        self.gaze_done_cbm.add_callback(callback)
-
-    def remove_gaze_done_callback(self, callback):
-        """Remove a callback that was registered to fire when the gaze action finished
-
-        :param callback: The callback to remove
-        :type callback: callable
-        """
-
-        self.gaze_done_cbm.remove_callback(callback)
-
-    def expression(self, expression, intensity=Default, speed=Default, duration=Default):
+    @requires(IExpression, (float, Default), (float, Default), (float, Default), (None, Callable), (None, Callable))
+    @returns(MultiGoalActionHandle)
+    def expression(self, expression, intensity=Default(), speed=Default(), duration=Default(), feedback_cb=None, done_cb=None):
         """ Makes the robot perform a facial expression, e.g. smile. The type of expression is specified by the
         expression parameter, an IExpression subclass member (e.g.for Zeno, Expression.Smile).
 
@@ -297,106 +324,40 @@ class Robot(Entity):
         :raises TypeError: target is not an Entity, speed is not a float or speed is not within the range 0.0 < speed <= 1.0
         """
 
-        ParamFormatting.assert_types(self.expression, expression, IExpression)
+        if Robot.is_action_runnable(self.expression_client, ExpressionAction.__name__, self.expression_found):
+            ParamAssertions.assert_types(self.expression, expression, IExpression)
 
-        if intensity is not Default:
-            ParamFormatting.assert_types(self.expression, intensity, float)
-            ParamFormatting.assert_range(self.expression, intensity, 0.0, 1.0)
+            goal = ExpressionGoal()
+            goal.expression = expression.name
 
-        if speed is not Default:
-            ParamFormatting.assert_types(self.expression, speed, float)
-            ParamFormatting.assert_range(self.expression, speed, 0.0, 1.0)
+            if intensity is None:
+                goal.intensity = -1
+            else:
+                ParamAssertions.assert_types(self.expression, intensity, float)
+                ParamAssertions.assert_range(self.expression, intensity, 0.0, 1.0)
+                goal.intensity = intensity
 
-        if duration is not Default:
-            ParamFormatting.assert_types(self.expression, duration, float)
-            ParamFormatting.assert_greater_than(self.expression, duration, 0.0)
+            if speed is None:
+                goal.speed = -1
+            else:
+                ParamAssertions.assert_types(self.expression, speed, float)
+                ParamAssertions.assert_range(self.expression, speed, 0.0, 1.0)
+                goal.speed = speed
 
-        goal = ExpressionGoal(expression, intensity, speed, duration)
-        gh = self.expression_client.send_goal(goal, done_cb=self.__expression_done)
-        ah = MultiGoalActionHandle(self.expression_client, gh)
-        self.add_action_handle(ah)
-        return ah
+            if duration is None:
+                goal.duration = -1
+            else:
+                ParamAssertions.assert_types(self.expression, duration, float)
+                ParamAssertions.assert_greater_than(self.expression, duration, 0.0)
+                goal.duration = duration
 
-    def expression_and_wait(self, expression, intensity=None, speed=None, duration=None, timeout=rospy.Duration()):
-        ah = self.expression(expression, intensity, speed, duration)
-        self.expression_client.wait_for_result(ah.goal_handle, timeout)
+            gh = self.expression_client.send_goal(goal, feedback_cb=feedback_cb, done_cb=done_cb)
+            ah = MultiGoalActionHandle(self.expression_client, gh)
+            return ah
 
-    def __expression_done(self, goal_handle):
-        with self.lock:
-            ah = self.get_action_handle(goal_handle)
-            self.remove_action_handle(ah)
-
-    def register_expression_done_callback(self, callback):
-        """Register a callback, it will be fired when the expression action finishes
-
-        :param callback: The callback to add
-        :type callback: callable
-        """
-        self.expression_done_cbm.add_callback(callback)
-
-    def remove_expression_done_callback(self, callback):
-        """Remove a callback that was registered to fire when the expression action finished
-
-        :param callback: The callback to remove
-        :type callback: callable
-        """
-
-        self.expression_done_cbm.remove_callback(callback)
-
-    # Gestures
-    def gesture(self, gesture, target=None, duration=None):
-
-        ParamFormatting.assert_types(self.gesture, gesture, IGesture)
-
-        goal = GestureGoal()
-        goal.gesture = gesture.name
-
-        if target is None:
-            goal.target = ''
-        else:
-            World().add_to_world(target)
-            ParamFormatting.assert_types(self.gesture, target, Entity)
-            goal.target = target.global_id()
-
-        if duration is None:
-            goal.duration = -1
-        else:
-            ParamFormatting.assert_types(self.expression, duration, float)
-            ParamFormatting.assert_greater_than(self.expression, duration, 0.0)
-            goal.duration = duration
-
-        gh = self.gesture_client.send_goal(goal, done_cb=self.__gesture_done)
-
-        ah = MultiGoalActionHandle(self.gesture_client, gh)
-        self.add_action_handle(ah)
-        return ah
-
-    def gesture_and_wait(self, gesture, target=None, duration=None, timeout=rospy.Duration()):
-        ah = self.gesture(gesture, target, duration)
-        self.gesture_client.wait_for_result(ah.goal_handle, timeout)
-
-    def __gesture_done(self, goal_handle):
-        with self.lock:
-            ah = self.get_action_handle(goal_handle)
-            self.remove_action_handle(ah)
-
-    def add_action_handle(self, action_handle):
-        with self.lock:
-            ParamFormatting.assert_types(self.add_action_handle, action_handle, IActionHandle)
-            self.action_handles.append(action_handle)
-
-    def get_action_handle(self, goal_handle):
-        with self.lock:
-            for ah in self.action_handles:
-                if isinstance(ah, MultiGoalActionHandle):
-                    if ah.goal_handle == goal_handle:
-                        return ah
-
-    def remove_action_handle(self, action_handle):
-        with self.lock:
-            ParamFormatting.assert_types(self.remove_action_handle, action_handle, IActionHandle)
-            if action_handle in self.action_handles:
-                    self.action_handles.remove(action_handle)
+    def expression_and_wait(self, expression, intensity=Default, speed=Default, duration=Default, feedback_cb=None, done_cb=None):
+        ah = self.expression(expression, intensity, speed, duration, feedback_cb, done_cb)
+        self.expression_client.wait_for_result(ah.goal_handle)
 
     def simultaneously(self, *goals):
         action_handles = []
@@ -404,47 +365,100 @@ class Robot(Entity):
         with self.lock:
             for goal in goals:
                 if isinstance(goal, SayGoal):
-                    self.say_client.send_goal(goal)
-                    ah = SingleGoalActionHandle(self.say_client)
-                    self.add_action_handle(ah)
-                    action_handles.append(ah)
+                    if Robot.is_action_runnable(self.say_client, SayAction.__name__, self.say_found):
+                        self.say_client.send_goal(goal)
+                        ah = SingleGoalActionHandle(self.say_client)
+                        action_handles.append(ah)
 
                 elif isinstance(goal, GazeGoal):
-                    self.gaze_client.send_goal(goal)
-                    ah = SingleGoalActionHandle(self.gaze_client)
-                    self.add_action_handle(ah)
-                    action_handles.append(ah)
-
-                elif isinstance(goal, ExpressionGoal):
-                    gh = self.expression_client.send_goal(goal)
-                    ah = MultiGoalActionHandle(self.expression_client, gh)
-                    self.add_action_handle(ah)
-                    action_handles.append(ah)
+                    if Robot.is_action_runnable(self.gaze_client, GazeAction.__name__, self.gaze_found):
+                        self.gaze_client.send_goal(goal)
+                        ah = SingleGoalActionHandle(self.gaze_client)
+                        action_handles.append(ah)
 
                 elif isinstance(goal, GestureGoal):
-                    gh = self.gesture_client.send_goal(goal)
-                    ah = MultiGoalActionHandle(self.gesture_client, gh)
-                    self.add_action_handle(ah)
-                    action_handles.append(ah)
+                    if Robot.is_action_runnable(self.gesture_client, GestureAction.__name__, self.gesture_found):
+                        gh = self.gesture_client.send_goal(goal)
+                        ah = MultiGoalActionHandle(self.gesture_client, gh)
+                        action_handles.append(ah)
+
+                elif isinstance(goal, ExpressionGoal):
+                    if Robot.is_action_runnable(self.expression_client, ExpressionAction.__name__, self.expression_found):
+                        gh = self.expression_client.send_goal(goal)
+                        ah = MultiGoalActionHandle(self.expression_client, gh)
+                        action_handles.append(ah)
+
+
                 else:
                     raise TypeError('robot.simultaneously parameter goals has a goal with a unsupported type {0}, at index {1}. Should be one of: TextToSpeechGoal, TargetGoal, ExpressionGoal or GestureGoal'.format(type(goal), goals.index(goal)))
 
         return action_handles
 
-    def consecutively(self, *goals):
-        with self.lock:
-            pass
-
     # Wait for one or more goals to finish
     def wait(self, *action_handles):
         for ah in action_handles:
-            ParamFormatting.assert_types(self.wait, ah, IActionHandle)
+            ParamAssertions.assert_types(self.wait, ah, IActionHandle)
             ah.wait_for_result()
-            self.remove_action_handle(action_handle=ah)
 
     # Cancel one or more goals
     def cancel(self, *action_handles):
         for ah in action_handles:
-            ParamFormatting.assert_types(self.wait, ah, IActionHandle)
+            ParamAssertions.assert_types(self.wait, ah, IActionHandle)
             ah.cancel_action()
-            self.remove_action_handle(action_handle=ah)
+
+    @staticmethod
+    def is_action_runnable(action_client, action_type_name, action_found):
+        if action_client is None:
+            rospy.logerr("Cannot do {0} action because this action hasn't been configured for your robot. Please define "
+                         "the {0} action and the namespace of its action server in your "
+                         "robots yaml configuration file".format(action_type_name))
+            return False
+
+        elif not action_found:
+            rospy.logerr("Cannot do {0} action because the {0} action server could not be found. Please check that "
+                         "the {0} action server with the namespace {1} is running. "
+                         "Hint: rostopic list | grep {1}".format(action_type_name, action_client.action_client.ns))
+            return False
+
+        return True
+
+    @staticmethod
+    def is_service_callable(service_proxy, service_type_name, service_found):
+        if service_proxy is None:
+            rospy.logerr("Cannot call {0} service because this service hasn't been defined for your robot. Please define "
+                         "the {0} service and its name in your robots yaml configuration file".format(service_type_name))
+            return False
+
+        elif not service_found:
+            rospy.logerr("Cannot call {0} service because the {0} service could not be found. Please check that "
+                         "the {0} service with the name {1} is running. "
+                         "Hint: rosservice list | grep {1}".format(service_type_name, service_proxy.name))
+            return False
+
+        return True
+
+    @staticmethod
+    def wait_for_action_server(action_client, action_type_name):
+        connected = action_client.wait_for_server(timeout=rospy.Duration.from_sec(Robot.SERVER_TIMEOUT))
+
+        if not connected:
+            rospy.logerr("{0} actions are disabled because I could not connect to the {0} action server. Please "
+                         "check that the {0} action server with the namespace {1} is running. "
+                         "Hint: rostopic list | grep {1}".format(action_type_name, action_client.action_client.ns))
+
+        return connected
+
+    @staticmethod
+    def wait_for_service(service_proxy, service_type_name):
+        connected = service_proxy.wait_for_service(timeout=rospy.Duration.from_sec(Robot.SERVER_TIMEOUT))
+
+        if not connected:
+            rospy.logerr("The {0} service is disabled because I could not connect to the {0} service. Please "
+                         "check that the {0} service with the namespace {1} is running. "
+                         "Hint: rosservice list | grep {1}".format(service_type_name, service_proxy.name))
+
+        return connected
+
+
+
+

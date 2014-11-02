@@ -1,1 +1,1 @@
-string entity_id         # Unique id corresponding to entity
+string global_id         # Unique id corresponding to entity

@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 # Copyright (c) 2009, Willow Garage, Inc.
-# Copyright (c) 2014, Jamie Diprose
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,7 +26,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 #
-# Author: Alexander Sorokin, Jamie Diprose
+# Author: Alexander Sorokin, Jamie Diprose (Multi goal action server)
 # Based on C++ simple_action_server.h by Eitan Marder-Eppstein
 
 import rospy

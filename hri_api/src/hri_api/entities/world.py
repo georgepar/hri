@@ -7,7 +7,7 @@ from hri_api.util import Singleton, InitNode
 from hri_msgs.srv import TfFrame, TfFrameResponse, IfQueryableExecute, IfQueryableExecuteResponse, AddEntity, AddEntityResponse, SetVisibility, SetVisibilityResponse
 from std_srvs.srv import Empty
 import importlib
-from hri_api.util import ParamFormatting
+from hri_api.util import ParamAssertions
 
 
 class World():
@@ -82,7 +82,7 @@ class World():
         return SetVisibilityResponse()
 
     def add_to_world(self, entity):
-        ParamFormatting.assert_types(self.add_to_world, entity, Entity, Query)
+        ParamAssertions.assert_types(self.add_to_world, entity, Entity, Query)
 
         global_id = entity.global_id()
 
@@ -97,7 +97,7 @@ class World():
                 rospy.logdebug("Added query with global_id: %s", global_id)
 
     def entity_from_global_id(self, global_id):
-        ParamFormatting.assert_types(self.entity_from_global_id, global_id, str)
+        ParamAssertions.assert_types(self.entity_from_global_id, global_id, str)
         self.entity_from_global_id.
         if global_id in self.global_id_lookup:
             return self.global_id_lookup[global_id]

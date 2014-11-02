@@ -1,4 +1,4 @@
-string entity_id
+string global_id
 ---
 bool is_queryable
 hri_msgs/EntityMsg[] entities

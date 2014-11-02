@@ -34,7 +34,37 @@ import rospy
 from rospy import Header
 from actionlib_msgs.msg import *
 from actionlib.action_client import CommState, get_name_of_constant
-from hri_api.actions import ActionClient
+from actionlib import ActionException, GoalManager,GoalStatusArray, GoalID, ActionClient as SingleGoalActionClient
+import rospy
+
+
+class ActionClient(SingleGoalActionClient):
+
+    # Overriding the constructor because it only lets you publish one message to pub_goal / pub_cancel
+    def __init__(self, ns, ActionSpec):
+        self.ns = ns
+        self.last_status_msg = None
+
+        try:
+            a = ActionSpec()
+
+            self.ActionSpec = ActionSpec
+            self.ActionGoal = type(a.action_goal)
+            self.ActionResult = type(a.action_result)
+            self.ActionFeedback = type(a.action_feedback)
+        except AttributeError:
+            raise ActionException("Type is not an action spec: %s" % str(ActionSpec))
+
+        self.pub_goal = rospy.Publisher(rospy.remap_name(ns) + '/goal', self.ActionGoal, queue_size=100)
+        self.pub_cancel = rospy.Publisher(rospy.remap_name(ns) + '/cancel', GoalID, queue_size=100)
+
+        self.manager = GoalManager(ActionSpec)
+        self.manager.register_send_goal_fn(self.pub_goal.publish)
+        self.manager.register_cancel_fn(self.pub_cancel.publish)
+
+        self.status_sub = rospy.Subscriber(rospy.remap_name(ns) + '/status', GoalStatusArray, self._status_cb)
+        self.result_sub = rospy.Subscriber(rospy.remap_name(ns) + '/result', self.ActionResult, self._result_cb)
+        self.feedback_sub = rospy.Subscriber(rospy.remap_name(ns) + '/feedback', self.ActionFeedback, self._feedback_cb)
 
 
 class SimpleGoalState:

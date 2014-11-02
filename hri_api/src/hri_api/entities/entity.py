@@ -10,7 +10,7 @@ import math
 from hri_api.util import InitNode
 from hri_api.actions import MultiGoalActionClient
 import uuid
-from hri_api.util import ParamFormatting
+from hri_api.util import ParamAssertions
 import sys
 import enum
 
@@ -26,9 +26,9 @@ class Entity(object):
     def __init__(self, local_frame_id, parent, naming_scheme=NamingScheme.Hierarchical):
         InitNode()
 
-        ParamFormatting.assert_types(self.__init__, local_frame_id, str)
-        ParamFormatting.assert_types(self.__init__, parent, Entity)
-        ParamFormatting.assert_types(self.__init__, naming_scheme, NamingScheme)
+        ParamAssertions.assert_types(self.__init__, local_frame_id, str)
+        ParamAssertions.assert_types(self.__init__, parent, Entity)
+        ParamAssertions.assert_types(self.__init__, naming_scheme, NamingScheme)
 
         self.tl = tf.TransformListener()
         self.local_frame_id = local_frame_id
@@ -52,7 +52,7 @@ class Entity(object):
         :raises TypeError: child must be a subtype of Entity
         """
 
-        ParamFormatting.assert_types(self.add_child, child, Entity)
+        ParamAssertions.assert_types(self.add_child, child, Entity)
         self.children.append(child)
 
     @property
@@ -117,7 +117,7 @@ class Entity(object):
                 return self.parent.global_frame_id(depth + 1) + '_' + self.local_frame_id
 
     def translation_to(self, target):
-        ParamFormatting.assert_types(self.translation_to, target, Entity)
+        ParamAssertions.assert_types(self.translation_to, target, Entity)
 
         try:
             (trans, rot) = self.tl.lookupTransform(self.default_body_part(), target.default_body_part(), rospy.Time())
@@ -140,7 +140,7 @@ class Entity(object):
         :raises TypeError: entity is not of type Entity
         """
 
-        ParamFormatting.assert_types(self.infront_of, entity, Entity)
+        ParamAssertions.assert_types(self.infront_of, entity, Entity)
 
         origin = Point()
         other = self.translation_to(entity)
@@ -161,7 +161,7 @@ class Entity(object):
         :raises TypeError: entity is not of type Entity
         """
 
-        ParamFormatting.assert_types(self.behind, entity, Entity)
+        ParamAssertions.assert_types(self.behind, entity, Entity)
 
         origin = Point()
         other = self.translation_to(entity)
@@ -182,7 +182,7 @@ class Entity(object):
         :raises TypeError: entity is not of type Entity
         """
 
-        ParamFormatting.assert_types(self.left_of, entity, Entity)
+        ParamAssertions.assert_types(self.left_of, entity, Entity)
 
         origin = Point()
         other = self.translation_to(entity)
@@ -203,7 +203,7 @@ class Entity(object):
         :raises TypeError: entity is not of type Entity
         """
 
-        ParamFormatting.assert_types(self.right_of, entity, Entity)
+        ParamAssertions.assert_types(self.right_of, entity, Entity)
 
         origin = Point()
         other = self.translation_to(entity)
@@ -224,7 +224,7 @@ class Entity(object):
         :raises TypeError: entity is not of type Entity
         """
 
-        ParamFormatting.assert_types(self.distance_to, entity, Entity)
+        ParamAssertions.assert_types(self.distance_to, entity, Entity)
 
         origin = Point()
         other = self.translation_to(entity)
