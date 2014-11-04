@@ -2,20 +2,19 @@
 import tf
 import rospy
 from geometry_msgs.msg import Point
-from hri_api.math import GeomMath
 from rospy import ServiceProxy
 import actionlib
 import abc
 import math
-from hri_api.util import InitNode
+from hri_api.util import InitNode, TypeChecker
 from hri_api.actions import MultiGoalActionClient
 import uuid
-from hri_api.util import ParamAssertions
 import sys
-import enum
+from enum import Enum
+import inspect
 
 
-class NamingScheme(enum):
+class NamingScheme(Enum):
 
     Flat = 1
     Hierarchical = 2
@@ -23,13 +22,18 @@ class NamingScheme(enum):
 
 class Entity(object):
 
+    """ The Entity class encapsulates functions and attributes common to all entities (objects) perceived / interacted
+     with by the robot. It contains high level functions for computing spatial relationships and can be used to represent
+     hierarchical objects detected by the robots perception system.
+
+    """
+
     def __init__(self, local_frame_id, parent, naming_scheme=NamingScheme.Hierarchical):
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name,
+                            (str, (None, Entity), NamingScheme),
+                            local_frame_id, parent, naming_scheme)
+
         InitNode()
-
-        ParamAssertions.assert_types(self.__init__, local_frame_id, str)
-        ParamAssertions.assert_types(self.__init__, parent, Entity)
-        ParamAssertions.assert_types(self.__init__, naming_scheme, NamingScheme)
-
         self.tl = tf.TransformListener()
         self.local_frame_id = local_frame_id
         self.parent = parent
@@ -49,10 +53,11 @@ class Entity(object):
 
         :param child: the child
         :type child: Entity
-        :raises TypeError: child must be a subtype of Entity
+        :raises TypeError: child not an Entity
         """
 
-        ParamAssertions.assert_types(self.add_child, child, Entity)
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name, (Entity,), child)
+
         self.children.append(child)
 
     @property
@@ -102,6 +107,7 @@ class Entity(object):
         :rtype: str
         :raises NotImplementedError: please implement this method
         """
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name, (int,), depth)
 
         if self.naming_scheme is NamingScheme.Flat:
             return self.local_frame_id
@@ -116,18 +122,6 @@ class Entity(object):
             else:
                 return self.parent.global_frame_id(depth + 1) + '_' + self.local_frame_id
 
-    def translation_to(self, target):
-        ParamAssertions.assert_types(self.translation_to, target, Entity)
-
-        try:
-            (trans, rot) = self.tl.lookupTransform(self.default_body_part(), target.default_body_part(), rospy.Time())
-            point = Point(trans[0], trans[1], trans[2])
-        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            point = Point()
-            rospy.loginfo("Couldn't transform from '" + self.global_frame_id() + "' to '" + target.global_frame_id() + "'")
-
-        return point
-
     def infront_of(self, entity):
         """
 
@@ -137,13 +131,13 @@ class Entity(object):
         :type entity: Entity
         :return: whether this assertion is true or not
         :rtype: bool
-        :raises TypeError: entity is not of type Entity
+        :raises TypeError: entity is not an Entity
         """
 
-        ParamAssertions.assert_types(self.infront_of, entity, Entity)
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name, (Entity,), entity)
 
         origin = Point()
-        other = self.translation_to(entity)
+        other = self.__translation_to(entity)
 
         if other.x >= origin.x:
             return True
@@ -158,13 +152,13 @@ class Entity(object):
         :type entity: Entity
         :return: whether this assertion is true or not
         :rtype: bool
-        :raises TypeError: entity is not of type Entity
+        :raises TypeError: entity is not an Entity
         """
 
-        ParamAssertions.assert_types(self.behind, entity, Entity)
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name, (Entity,), entity)
 
         origin = Point()
-        other = self.translation_to(entity)
+        other = self.__translation_to(entity)
 
         if other.x < origin.x:
             return True
@@ -179,13 +173,13 @@ class Entity(object):
         :type entity: Entity
         :return: whether this assertion is true or not
         :rtype: bool
-        :raises TypeError: entity is not of type Entity
+        :raises TypeError: entity is not an Entity
         """
 
-        ParamAssertions.assert_types(self.left_of, entity, Entity)
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name, (Entity,), entity)
 
         origin = Point()
-        other = self.translation_to(entity)
+        other = self.__translation_to(entity)
 
         if other.y >= origin.y:
             return True
@@ -200,13 +194,13 @@ class Entity(object):
         :type entity: Entity
         :return: whether this assertion is true or not
         :rtype: bool
-        :raises TypeError: entity is not of type Entity
+        :raises TypeError: entity is not an Entity
         """
 
-        ParamAssertions.assert_types(self.right_of, entity, Entity)
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name, (Entity,), entity)
 
         origin = Point()
-        other = self.translation_to(entity)
+        other = self.__translation_to(entity)
 
         if other.y < origin.y:
             return True
@@ -217,22 +211,34 @@ class Entity(object):
 
         Calculate the distance from the current instance to entity
 
-        :param entity:
+        :param entity: the entity we are finding the distance too
         :type entity: Entity
         :return: the distance from the instance to entity
         :rtype: float
-        :raises TypeError: entity is not of type Entity
+        :raises TypeError: entity is not an Entity
         """
 
-        ParamAssertions.assert_types(self.distance_to, entity, Entity)
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name, (Entity,), entity)
 
         origin = Point()
-        other = self.translation_to(entity)
+        other = self.__translation_to(entity)
 
         x_diff = origin.x - other.x
         y_diff = origin.y - other.y
         z_diff = origin.z - other.z
         return math.sqrt(x_diff * x_diff + y_diff * y_diff + z_diff * z_diff)
+
+    def __translation_to(self, target):
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name, (Entity,), target)
+
+        try:
+            (trans, rot) = self.tl.lookupTransform(self.default_body_part(), target.default_body_part(), rospy.Time())
+            point = Point(trans[0], trans[1], trans[2])
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            point = Point()
+            rospy.loginfo("Couldn't transform from '" + self.global_frame_id() + "' to '" + target.global_frame_id() + "'")
+
+        return point
 
     def __repr__(self):
         return self.global_id
@@ -242,28 +248,28 @@ class Entity(object):
             return True
         return False
 
-    @staticmethod
-    def wait_for_services(*services):
-        for i, service in enumerate(services):
-            if not isinstance(service, ServiceProxy):
-                raise TypeError("wait_for_services() parameter action_servers[{0}]={1} is not a ServiceProxy".format(i, service))
-
-            rospy.loginfo("Waiting for service: %s", service.resolved_name)
-            service.wait_for_service()
-            rospy.loginfo("Service found: %s", service.resolved_name)
-
-        rospy.loginfo("All services found")
-
-    @staticmethod
-    def wait_for_action_servers(*action_servers):
-        for i, action_server in enumerate(action_servers):
-            if not isinstance(action_server, (actionlib.SimpleActionClient, MultiGoalActionClient)):
-                raise TypeError("wait_for_action_servers() parameter action_servers[{0}]={1} is not a SimpleActionClient or MultiGoalActionClient".format(i, action_server))
-
-            name = action_server.action_client.ns
-            rospy.loginfo("Waiting for action server: %s", name)
-            action_server.wait_for_server()
-            rospy.loginfo("Action server: %s found", name)
-
-        rospy.loginfo("All action servers found")
+    # @staticmethod
+    # def wait_for_services(*services):
+    #     for i, service in enumerate(services):
+    #         if not isinstance(service, ServiceProxy):
+    #             raise TypeError("wait_for_services() parameter action_servers[{0}]={1} is not a ServiceProxy".format(i, service))
+    #
+    #         rospy.loginfo("Waiting for service: %s", service.resolved_name)
+    #         service.wait_for_service()
+    #         rospy.loginfo("Service found: %s", service.resolved_name)
+    #
+    #     rospy.loginfo("All services found")
+    #
+    # @staticmethod
+    # def wait_for_action_servers(*action_servers):
+    #     for i, action_server in enumerate(action_servers):
+    #         if not isinstance(action_server, (actionlib.SimpleActionClient, MultiGoalActionClient)):
+    #             raise TypeError("wait_for_action_servers() parameter action_servers[{0}]={1} is not a SimpleActionClient or MultiGoalActionClient".format(i, action_server))
+    #
+    #         name = action_server.action_client.ns
+    #         rospy.loginfo("Waiting for action server: %s", name)
+    #         action_server.wait_for_server()
+    #         rospy.loginfo("Action server: %s found", name)
+    #
+    #     rospy.loginfo("All action servers found")
 

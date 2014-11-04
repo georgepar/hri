@@ -20,7 +20,6 @@
 
 import itertools
 import heapq
-from hri_api.math import Util
 from .selectors import identity
 from .types import (is_iterable, is_type)
 from .portability import (is_callable, totally_ordered)

@@ -27,7 +27,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from hri_msgs.msg import GestureAction, GestureGoal, ExpressionAction, TargetGoal, ExpressionGoal, TargetAction
-from hri_msgs.srv import TextToSpeechSubsentenceDuration
+from hri_msgs.srv import SayDuration
+from hri_msgs.msg import SayActionFeedback, GazeActionFeedback, GestureActionFeedback, ExpressionActionFeedback
 import rospy
 from .entity import Entity
 from hri_api.entities import World
@@ -47,6 +48,7 @@ import xml.etree.ElementTree as ET
 from threading import Thread
 from std_msgs.msg import String
 from collections import Callable
+import inspect
 
 
 class IActionHandle():
@@ -99,14 +101,10 @@ class Default(object):
     """
     pass
 
-from enum import Enum
-
-
-
 
 class Robot(Entity):
-    """ The Robot class represents a robot and contains high level functions for controlling robot actions and
-    subscribing to social communication.
+    """ The Robot class represents a robot. It contains high level functions for representing and controlling robot
+    actions, receiving callbacks about action events and subscribing to social communication.
 
     .. note::
         The Robot class is an abstract class and is never directly used to program a robot. Instead, each robot has
@@ -137,35 +135,35 @@ class Robot(Entity):
         if SayAction.__name__ in robot_actions:
             namespace = robot_actions[SayAction.__name__]['namespace']
             self.say_client = actionlib.SimpleActionClient(namespace, SayAction)
-            self.say_found = Robot.wait_for_action_server(self.say_client, SayAction.__name__, namespace)
+            self.say_found = Robot.wait_for_action_server(self.say_client, SayAction.__name__)
         else:
             self.say_client = None
 
         if GazeAction.__name__ in robot_actions:
             namespace = robot_actions[GazeAction.__name__]['namespace']
             self.gaze_client = actionlib.SimpleActionClient(namespace, TargetAction)
-            self.gaze_found = Robot.wait_for_action_server(self.gaze_client, GazeAction.__name__, namespace)
+            self.gaze_found = Robot.wait_for_action_server(self.gaze_client, GazeAction.__name__)
         else:
             self.gaze_client = None
 
         if GestureAction.__name__ in robot_actions:
             namespace = robot_actions[GestureAction.__name__]['namespace']
             self.gesture_client = MultiGoalActionClient(namespace, GestureAction)
-            self.gesture_found = Robot.wait_for_action_server(self.gesture_client, GestureAction.__name__, namespace)
+            self.gesture_found = Robot.wait_for_action_server(self.gesture_client, GestureAction.__name__)
         else:
             self.gesture_client = None
 
         if ExpressionAction.__name__ in robot_actions:
             namespace = robot_actions[Action.expression.name]['namespace']
             self.expression_client = MultiGoalActionClient(namespace, ExpressionAction)
-            self.expression_found = Robot.wait_for_action_server(self.gesture_client, ExpressionAction.__name__, namespace)
+            self.expression_found = Robot.wait_for_action_server(self.gesture_client, ExpressionAction.__name__)
         else:
             self.expression_client = None
 
         if SayDuration.__name__ in robot_services:
             name = robot_services[SayDuration.__name__]['name']
             self.say_duration_srv = rospy.ServiceProxy(namespace, SayDuration)
-            self.say_duration_found = Robot.wait_for_service(self.say_duration_srv, SayDuration.__name__, name)
+            self.say_duration_found = Robot.wait_for_service(self.say_duration_srv, SayDuration.__name__)
         else:
             self.say_duration_srv = None
 
@@ -192,170 +190,213 @@ class Robot(Entity):
 
         self.listen_cb(text)
 
-    @requires(str, (None, Callable), (None, Callable))
-    @returns(SingleGoalActionHandle)
     def say(self, text, feedback_cb=None, done_cb=None):
-        """ Synthesise the text in the string text. This function is asynchronous; it returns an ActionHandle, a
-        unique identifier for the action being performed. An action handle can be used to wait for an action to complete
-        or to cancel an action
+        """ Say the text in the variable text.
+
+        This function is asynchronous; it returns an ActionHandle, a unique identifier for the action being performed.
+        An action handle can be used to wait for an action to complete or to stop an action
 
         :param text: The text the robot should say
         :type text: str
+
+        :param feedback_cb: a function that will be called when the state of the say action changes. The function
+        should have one parameter, which will be filled with a SayActionFeedback instance.
+        :type feedback_cb: Callable
+
+        :param done_cb: a function that will be called when the say action finishes.
+        :type done_cb: Callable
+
         :return: an action handle to keep track of the action
         :rtype: SingleGoalActionHandle
-        :raises TypeError: text is not a str
+        :raises TypeError: text is not a str, feedback_cb is not None or Callable, done_cb is not None or Callable
         """
 
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name,
+                            (str, (None, Callable), (None, Callable)),
+                            text, feedback_cb, done_cb)
+
         if Robot.is_action_runnable(self.say_client, SayAction.__name__, self.say_found):
-            ParamAssertions.assert_types(self.say, text, str)
-            goal = TextToSpeechGoal()
-            goal.sentence = text
+            goal = SayGoal(text)
             self.say_client.send_goal(goal, feedback_cb, done_cb)
             ah = SingleGoalActionHandle(self.say_client)
             self.say_ah = ah
             return ah
 
     def say_and_wait(self, text, feedback_cb=None, done_cb=None):
-        """ A synchronous version of the say function. The and_wait syntax signals that the function will not return
-        until it completes. No ActionHandle is returned because the action completes before it returns.
+        """ A synchronous version of the say function.
 
-        :param text: The text the robot should say
-        :type text: str
+        The and_wait syntax signals that the function will not return until it completes.
+
+        No ActionHandle is returned because the action completes before it returns.
         """
+
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name,
+                            (str, (None, Callable), (None, Callable)),
+                            text, feedback_cb, done_cb)
 
         self.say(text, feedback_cb, done_cb)
         self.say_client.wait_for_result()
 
-    @requires(Entity, float, (None, Callable), (None, Callable))
-    @returns(SingleGoalActionHandle)
-    def gaze(self, head_target, speed=0.5, feedback_cb=None, done_cb=None):
-        """ Makes the robot gaze at a target. The speed that the robot gazes at is controlled by the speed parameter.
-        This function is asynchronous and returns an ActionHandle to keep track of the action.
+    def gaze(self, target, speed=0.5, feedback_cb=None, done_cb=None):
+        """ Makes the robot gaze at a target.
 
-        :param head_target: The target to gaze at
-        :type head_target: Entity
+        This function is asynchronous and returns an SingleGoalActionHandle to keep track of the action.
+
+        :param target: The target to gaze at
+        :type target: Entity
+
         :param speed: The speed of the gaze action (normalised between 0.0 < speed <= 1.0)
         :type speed: float
+
+        :param feedback_cb: a function that will be called when the state of the gaze action changes. The function
+        should have one parameter, which will be filled with a GazeActionFeedback instance.
+        :type feedback_cb: Callable
+
+        :param done_cb: a function that will be called when the gaze action finishes.
+        :type done_cb: Callable
+
         :return: an action handle to keep track of the action
         :rtype: SingleGoalActionHandle
-        :raises TypeError: target is not an Entity, speed is not a float or speed is not within the range 0.0 < speed <= 1.0
+        :raises TypeError: target is not an Entity, speed is not a float, feedback_cb is not None or Callable, done_cb
+        is not None or Callable
         """
 
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name,
+                            (Entity, float, (None, Callable), (None, Callable)),
+                            target, speed, feedback_cb, done_cb)
+
         if Robot.is_action_runnable(self.gaze_client, GazeAction.__name__, self.gaze_found):
-            ParamAssertions.assert_types(self.gaze, head_target, Entity)
-            ParamAssertions.assert_types(self.gaze, speed, float)
-            ParamAssertions.assert_range(self.gaze, speed, 0.0, 1.0)
-
-            World().add_to_world(head_target)
-            goal = TargetGoal()
-            goal.target = head_target.get_id()
-            goal.speed = speed
-            goal.acceleration = 0.3
-
-            self.gaze_client.send_goal(goal, feedback_cb=feedback_cb, done_cb=done_cb)
+            World().add_to_world(target)
+            goal = GazeGoal(target, speed, 0.3) #Todo override acceleration goal.acceleration = 0.3
+            self.gaze_client.send_goal(goal, feedback_cb, done_cb)
             ah = SingleGoalActionHandle(self.gaze_client)
             self.gaze_ah = ah
             return ah
 
     def gaze_and_wait(self, target, speed=0.5, feedback_cb=None, done_cb=None):
-        """ A synchronous version of the gaze function. No ActionHandle is returned because the action completes
-        before it returns.
+        """ A synchronous version of the gaze function.
 
-        :param target: The target to gaze at
-        :type target: Entity
-        :param speed: The speed of the gaze action (normalised between 0.0 < speed <= 1.0)
-        :type speed: float
-        :param timeout: the duration to gaze before exiting
-        :type timeout: rospy.Duration
+        No ActionHandle is returned because the action completes before it returns.
         """
 
-        self.gaze(target, speed, feedback_cb=feedback_cb, done_cb=done_cb)
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name,
+                            (Entity, float, (None, Callable), (None, Callable)),
+                            target, speed, feedback_cb, done_cb)
+
+        self.gaze(target, speed, feedback_cb, done_cb)
         self.gaze_client.wait_for_result()
 
-    @requires(IGesture, (float, Default), (None, Entity), (None, Callable), (None, Callable))
-    @returns(MultiGoalActionHandle)
-    def gesture(self, gesture, duration=Default, target=None, feedback_cb=None, done_cb=None):
+    def gesture(self, gesture, duration=Default(), target=None, feedback_cb=None, done_cb=None):
+        """  Makes the robot perform a gesture, e.g. make a robot wave its left arm.
+
+         The default values for the duration of each gesture are specified in the robots IGesture enumeration definition.
+
+        :param gesture: the gesture to perform, an IGesture Python enumeration member e.g. for Nao, Gesture.WaveLArm.
+        :type gesture: IGesture
+
+        :param duration: the length of time the gesture plays for (seconds). If Default then the gesture is performed for
+        its default duration. Use positive infinity for a never ending gesture, hint: float('inf')
+        :type duration: float, Default
+
+        :param target: the target to orient the gesture toward
+        :type target: None, Entity
+
+        :param feedback_cb: a function that will be called when the state of the gesture action changes. The function
+        should have one parameter, which will be filled with a GestureActionFeedback instance.
+        :type feedback_cb: Callable
+
+        :param done_cb: a function that will be called when the gesture action finishes.
+        :type done_cb: Callable
+
+        :return: an action handle to keep track of the action
+        :rtype: MultiGoalActionHandle
+        :raises TypeError: gesture is not an IGesture member, duration is not a float or Default, target is not None or
+        an Entity, feedback_cb is not None or Callable, done_cb is not None or Callable
+        """
+
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name,
+                            (IGesture, (Default, float), (None, Entity), (None, Callable), (None, Callable)),
+                            gesture, duration, feedback_cb, done_cb)
 
         if Robot.is_action_runnable(self.gesture_client, GestureAction.__name__, self.gesture_found):
-            ParamAssertions.assert_types(self.gesture, gesture, IGesture)
-
-            goal = GestureGoal()
-            goal.gesture = gesture.name
-
-            if target is None:
-                goal.target = ''
-            else:
+            if target is not None:
                 World().add_to_world(target)
-                ParamAssertions.assert_types(self.gesture, target, Entity)
-                goal.target = target.get_id()
 
-            if duration is None:
-                goal.duration = -1
-            else:
-                ParamAssertions.assert_types(self.expression, duration, float)
-                ParamAssertions.assert_greater_than(self.expression, duration, 0.0)
-                goal.duration = duration
-
-            gh = self.gesture_client.send_goal(goal, feedback_cb=feedback_cb, done_cb=done_cb)
-
+            goal = GestureGoal(gesture, duration, target) #TODO: check goal.target = target.get_id()
+            gh = self.gesture_client.send_goal(goal, feedback_cb, done_cb)
             ah = MultiGoalActionHandle(self.gesture_client, gh)
             return ah
 
     def gesture_and_wait(self, gesture, duration=Default, target=None, feedback_cb=None, done_cb=None):
+        """ A synchronous version of the gesture function.
+
+        No ActionHandle is returned because the action completes before it returns.
+        """
+
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name,
+                            (IGesture, (Default, float), (None, Entity), (None, Callable), (None, Callable)),
+                            gesture, duration, feedback_cb, done_cb)
+
         ah = self.gesture(gesture, duration, target, feedback_cb, done_cb)
         self.gesture_client.wait_for_result(ah.goal_handle)
 
-    @requires(IExpression, (float, Default), (float, Default), (float, Default), (None, Callable), (None, Callable))
-    @returns(MultiGoalActionHandle)
     def expression(self, expression, intensity=Default(), speed=Default(), duration=Default(), feedback_cb=None, done_cb=None):
-        """ Makes the robot perform a facial expression, e.g. smile. The type of expression is specified by the
-        expression parameter, an IExpression subclass member (e.g.for Zeno, Expression.Smile).
+        """ Makes the robot perform a facial expression, e.g. smile.
 
-        :param expression: The expression to perform
+        The default values for the intensity, speed and duration of each gesture are specified in the robots IExpression
+        enumeration definition.
+
+        This function is asynchronous and returns an ActionHandle.
+
+        :param expression: The type of expression to perform, an IExpression enumeration member (e.g.for Zeno, Expression.Smile).
         :type expression: IExpression subclass member
-        :param intensity: The intensity of the expression (normalised between 0.0 < speed <= 1.0)
+
+        :param intensity: The strength of the expression e.g. a smile with an intensity of 1.0 is the largest possible smile
+        (normalised between 0.0 < speed <= 1.0).
         :type intensity: float, Default
-        :param speed: The speed of the expression (normalised between 0.0 < speed <= 1.0)
+
+        :param speed: how fast the expression is performed, e.g. a smile expression with a speed of 1.0 is
+        performed at the fastest possible speed (normalized between 0.0 <= speed <= 1.0). If Default() then the
+        expression is performed at its default speed.
         :type speed: float, Default
-        :param duration: The duration of the expression (normalised between 0.0 < speed <= 1.0)
+
+        :param duration: how long the expression lasts (seconds). If Default() then the expression is performed for its
+        default duration. Use positive infinity for a never ending expression, hint: float('inf')
         :type duration: float, Default
+
+        :param feedback_cb: a function that will be called when the state of the expression action changes. The function
+        should have one parameter, which will be filled with a ExpressionActionFeedback instance.
+        :type feedback_cb: Callable
+
+        :param done_cb: a function that will be called when the expression action finishes.
+        :type done_cb: Callable
+
         :return: an action handle to keep track of the action
         :rtype: MultiGoalActionHandle
-        :raises TypeError: target is not an Entity, speed is not a float or speed is not within the range 0.0 < speed <= 1.0
+        :raises TypeError: expression is not an IExpression member, intensity is not a float or Default, speed is not a
+        float or Default, duration is not a float or Default, feedback_cb is not None or Callable, done_cb is not None or Callable
         """
 
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name,
+                            (IExpression, (Default, float), (Default, float), (Default, float), (None, Callable), (None, Callable)),
+                            expression, intensity, speed, duration, feedback_cb, done_cb)
+
         if Robot.is_action_runnable(self.expression_client, ExpressionAction.__name__, self.expression_found):
-            ParamAssertions.assert_types(self.expression, expression, IExpression)
-
-            goal = ExpressionGoal()
-            goal.expression = expression.name
-
-            if intensity is None:
-                goal.intensity = -1
-            else:
-                ParamAssertions.assert_types(self.expression, intensity, float)
-                ParamAssertions.assert_range(self.expression, intensity, 0.0, 1.0)
-                goal.intensity = intensity
-
-            if speed is None:
-                goal.speed = -1
-            else:
-                ParamAssertions.assert_types(self.expression, speed, float)
-                ParamAssertions.assert_range(self.expression, speed, 0.0, 1.0)
-                goal.speed = speed
-
-            if duration is None:
-                goal.duration = -1
-            else:
-                ParamAssertions.assert_types(self.expression, duration, float)
-                ParamAssertions.assert_greater_than(self.expression, duration, 0.0)
-                goal.duration = duration
-
-            gh = self.expression_client.send_goal(goal, feedback_cb=feedback_cb, done_cb=done_cb)
+            goal = ExpressionGoal(expression, intensity, speed, duration)
+            gh = self.expression_client.send_goal(goal, feedback_cb, done_cb)
             ah = MultiGoalActionHandle(self.expression_client, gh)
             return ah
 
     def expression_and_wait(self, expression, intensity=Default, speed=Default, duration=Default, feedback_cb=None, done_cb=None):
+        """ A synchronous version of the expression function.
+
+        No ActionHandle is returned because the action completes before it returns.
+        """
+
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name,
+                            (IExpression, (Default, float), (Default, float), (Default, float), (None, Callable), (None, Callable)),
+                            expression, intensity, speed, duration, feedback_cb, done_cb)
+
         ah = self.expression(expression, intensity, speed, duration, feedback_cb, done_cb)
         self.expression_client.wait_for_result(ah.goal_handle)
 
@@ -387,23 +428,24 @@ class Robot(Entity):
                         gh = self.expression_client.send_goal(goal)
                         ah = MultiGoalActionHandle(self.expression_client, gh)
                         action_handles.append(ah)
-
-
                 else:
                     raise TypeError('robot.simultaneously parameter goals has a goal with a unsupported type {0}, at index {1}. Should be one of: TextToSpeechGoal, TargetGoal, ExpressionGoal or GestureGoal'.format(type(goal), goals.index(goal)))
 
         return action_handles
 
+    # TODO: simultaneously action handle
+    # TODO: consecutively method and action handle
+
     # Wait for one or more goals to finish
     def wait(self, *action_handles):
         for ah in action_handles:
-            ParamAssertions.assert_types(self.wait, ah, IActionHandle)
+            #TODO: ParamAssertions.assert_types(self.wait, ah, IActionHandle)
             ah.wait_for_result()
 
     # Cancel one or more goals
     def cancel(self, *action_handles):
         for ah in action_handles:
-            ParamAssertions.assert_types(self.wait, ah, IActionHandle)
+            #TODO: ParamAssertions.assert_types(self.wait, ah, IActionHandle)
             ah.cancel_action()
 
     @staticmethod

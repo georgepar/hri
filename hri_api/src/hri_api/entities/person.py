@@ -27,10 +27,12 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from hri_api.entities import Entity
-from hri_api.util import ParamAssertions
+from hri_api.util import TypeChecker
+import inspect
 
 
 class Person(Entity):
+
     """This class represents a person and their major body parts.
 
     .. note::
@@ -46,14 +48,14 @@ class Person(Entity):
     def __init__(self, local_id):
         """
 
-        Instantiates a Person class and their body parts.
+        The Person class constructor. Instantiates the person and their body parts.
 
         :param local_id: the id that uniquely identifies this person instance from all other person instances
         :type local_id: int
         """
 
         # Check types
-        ParamAssertions.assert_types(self.__init__, local_id, int)
+        TypeChecker.accepts(inspect.currentframe().f_code.co_name, (int,), local_id)
 
         # Call the superclass constructor
         Entity.__init__(self, 'person' + str(local_id), None)

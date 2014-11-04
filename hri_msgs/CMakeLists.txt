@@ -60,7 +60,7 @@ add_service_files(
    SetVisibility.srv
    TfFrame.srv
    IfQueryableExecute.srv
-   TextToSpeechSubsentenceDuration.srv
+   SayDuration.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -69,8 +69,7 @@ add_action_files(
    Expression.action
    Gesture.action
    Target.action
-   NavigateTo.action
-   TextToSpeech.action
+   Say.action
    Timer.action
 )
 
