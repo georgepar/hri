@@ -244,8 +244,8 @@ class SayToPlan():
         self.reset()
         self.audience = audience
 
-        ParamFormatting.assert_types(self.parse_parameters, text, str)
-        ParamFormatting.assert_types(self.parse_parameters, audience, Entity, Query)
+        # ParamFormatting.assert_types(self.parse_parameters, text, str)
+        # ParamFormatting.assert_types(self.parse_parameters, audience, Entity, Query)
 
         # if not is_callable(tts_duration_srv):
         #     raise TypeError("parse_parameters() parameter tts_duration_srv={0} is not callable".format(tts_duration_srv))
@@ -357,13 +357,19 @@ class Robot(Entity):
             self.wait_for_action_servers(self.tts_client)
             self.tts_found = True
 
-        ParamFormatting.assert_types(self.say, text, str)
+        print("start say")
+
+        #ParamFormatting.assert_types(self.say, text, str)
+        print("after ParamFormatting")
         goal = TextToSpeechGoal()
         goal.sentence = text
         self.tts_client.send_goal(goal, feedback_cb=self.say_feedback, done_cb=self.say_done)
+        print("after send_goal")
         ah = SingleGoalActionHandle(self.tts_client)
+
         self.say_ah = ah
         self.add_action_handle(ah)
+        print("end say")
         return ah
 
     def say_and_wait(self, text):
@@ -381,9 +387,9 @@ class Robot(Entity):
             self.wait_for_action_servers(self.gaze_client)
             self.gaze_found = True
 
-        ParamFormatting.assert_types(self.gaze, target, Entity)
-        ParamFormatting.assert_types(self.gaze, speed, float)
-        ParamFormatting.assert_range(self.gaze, speed, 0.0, 1.0)
+        # ParamFormatting.assert_types(self.gaze, target, Entity)
+        # ParamFormatting.assert_types(self.gaze, speed, float)
+        # ParamFormatting.assert_range(self.gaze, speed, 0.0, 1.0)
 
         World().add_to_world(target)
         goal = TargetGoal()
@@ -425,7 +431,7 @@ class Robot(Entity):
             self.wait_for_action_servers(self.expression_client)
             self.expression_found = True
 
-        ParamFormatting.assert_types(self.expression, expression, IExpression)
+        # ParamFormatting.assert_types(self.expression, expression, IExpression)
 
         goal = ExpressionGoal()
         goal.expression = expression.name
@@ -433,22 +439,22 @@ class Robot(Entity):
         if intensity is None:
             goal.intensity = -1
         else:
-            ParamFormatting.assert_types(self.expression, intensity, float)
-            ParamFormatting.assert_range(self.expression, intensity, 0.0, 1.0)
+            # ParamFormatting.assert_types(self.expression, intensity, float)
+            # ParamFormatting.assert_range(self.expression, intensity, 0.0, 1.0)
             goal.intensity = intensity
 
         if speed is None:
             goal.speed = -1
         else:
-            ParamFormatting.assert_types(self.expression, speed, float)
-            ParamFormatting.assert_range(self.expression, speed, 0.0, 1.0)
+            # ParamFormatting.assert_types(self.expression, speed, float)
+            # ParamFormatting.assert_range(self.expression, speed, 0.0, 1.0)
             goal.speed = speed
 
         if duration is None:
             goal.duration = -1
         else:
-            ParamFormatting.assert_types(self.expression, duration, float)
-            ParamFormatting.assert_greater_than(self.expression, duration, 0.0)
+            # ParamFormatting.assert_types(self.expression, duration, float)
+            # ParamFormatting.assert_greater_than(self.expression, duration, 0.0)
             goal.duration = duration
 
         gh = self.expression_client.send_goal(goal, done_cb=self.expression_done)
@@ -471,7 +477,7 @@ class Robot(Entity):
             self.wait_for_action_servers(self.gesture_client)
             self.gesture_found = True
 
-        ParamFormatting.assert_types(self.gesture, gesture, IGesture)
+        # ParamFormatting.assert_types(self.gesture, gesture, IGesture)
 
         goal = GestureGoal()
         goal.gesture = gesture.name
@@ -480,14 +486,14 @@ class Robot(Entity):
             goal.target = ''
         else:
             World().add_to_world(target)
-            ParamFormatting.assert_types(self.gesture, target, Entity)
+            # ParamFormatting.assert_types(self.gesture, target, Entity)
             goal.target = target.get_id()
 
         if duration is None:
             goal.duration = -1
         else:
-            ParamFormatting.assert_types(self.expression, duration, float)
-            ParamFormatting.assert_greater_than(self.expression, duration, 0.0)
+            # ParamFormatting.assert_types(self.expression, duration, float)
+           # ParamFormatting.assert_greater_than(self.expression, duration, 0.0)
             goal.duration = duration
 
         gh = self.gesture_client.send_goal(goal, done_cb=self.gesture_done)
@@ -511,8 +517,8 @@ class Robot(Entity):
             self.wait_for_services(self.tts_duration_srv)
             self.tts_duration_found = True
 
-        ParamFormatting.assert_types(self.say_to, text, str)
-        ParamFormatting.assert_types(self.say_to, audience, Entity, Query, list)
+        # ParamFormatting.assert_types(self.say_to, text, str)
+        # ParamFormatting.assert_types(self.say_to, audience, Entity, Query, list)
 
         self.say_to_plan.parse_parameters(text, audience, self.expression_enum, self.gesture_enum, self.tts_duration_srv)
 
@@ -558,7 +564,7 @@ class Robot(Entity):
 
     def add_action_handle(self, action_handle):
         with self.lock:
-            ParamFormatting.assert_types(self.add_action_handle, action_handle, IActionHandle)
+            # ParamFormatting.assert_types(self.add_action_handle, action_handle, IActionHandle)
             self.action_handles.append(action_handle)
 
     def get_action_handle(self, goal_handle):
@@ -570,7 +576,7 @@ class Robot(Entity):
 
     def remove_action_handle(self, action_handle):
         with self.lock:
-            ParamFormatting.assert_types(self.remove_action_handle, action_handle, IActionHandle)
+            # ParamFormatting.assert_types(self.remove_action_handle, action_handle, IActionHandle)
             if action_handle in self.action_handles:
                     self.action_handles.remove(action_handle)
 
@@ -610,14 +616,14 @@ class Robot(Entity):
     # Wait for one or more goals to finish
     def wait(self, *action_handles):
         for ah in action_handles:
-            ParamFormatting.assert_types(self.wait, ah, IActionHandle)
+            # ParamFormatting.assert_types(self.wait, ah, IActionHandle)
             ah.wait_for_result()
             self.remove_action_handle(action_handle=ah)
 
     # Cancel one or more goals
     def cancel(self, *action_handles):
         for ah in action_handles:
-            ParamFormatting.assert_types(self.wait, ah, IActionHandle)
+            # ParamFormatting.assert_types(self.wait, ah, IActionHandle)
             ah.cancel_action()
             self.remove_action_handle(action_handle=ah)
 
