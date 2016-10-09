@@ -575,7 +575,7 @@ class Robot(Entity):
         with self.lock:
             ParamFormatting.assert_types(self.remove_action_handle, action_handle, 'action_handle', IActionHandle)
             if action_handle in self.action_handles:
-                    self.action_handles.remove(action_handle)
+                self.action_handles.remove(action_handle)
 
     def do(self, *goals):
         action_handles = []
@@ -614,15 +614,17 @@ class Robot(Entity):
     def wait(self, *action_handles):
         for ah in action_handles:
             ParamFormatting.assert_types(self.wait, ah, '*action_handles', IActionHandle)
-            ah.wait_for_result()
-            self.remove_action_handle(action_handle=ah)
+            if ah is not None:
+                ah.wait_for_result()
+                self.remove_action_handle(action_handle=ah)
 
     # Cancel one or more goals
     def cancel(self, *action_handles):
         for ah in action_handles:
             ParamFormatting.assert_types(self.wait, ah, '*action_handles', IActionHandle)
-            ah.cancel_action()
-            self.remove_action_handle(action_handle=ah)
+            if ah is not None:
+                ah.cancel_action()
+                self.remove_action_handle(action_handle=ah)
 
     def default_tf_frame_id(self):
         msg = "Robot.default_tf_frame_id: Please implement this method"

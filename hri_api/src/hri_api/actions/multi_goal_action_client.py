@@ -269,7 +269,7 @@ class MultiGoalActionClient:
                 goal_id = self.goal_id(goal_handle)
                 return self.action_handles[goal_id]
             else:
-                rospy.logerr('Error, not tracking goal')
+                rospy.logerr('MultiGoalActionClient.get_action_handle. Error, not tracking goal: {0}'.format(str(goal_handle)))
 
     def goal_id(self, goal_handle):
         with self.action_handles_lock:
@@ -286,10 +286,17 @@ class MultiGoalActionClient:
 
             action_handle = self.get_action_handle(goal_handle)
 
-            error_msg = "Received comm state %s when in simple state %s with SimpleActionClient in NS %s" % \
-            (CommState.to_string(comm_state), SimpleGoalState.to_string(action_handle.simple_state), rospy.resolve_name(self.action_client.ns))
+            simple_goal_state = 'Undefined'
 
-            if comm_state == CommState.ACTIVE:
+            if action_handle is not None:
+                simple_goal_state = SimpleGoalState.to_string(action_handle.simple_state)
+
+            error_msg = "Received comm state %s when in simple state %s with SimpleActionClient in NS %s" % \
+            (CommState.to_string(comm_state), simple_goal_state, rospy.resolve_name(self.action_client.ns))
+
+            if action_handle is None:
+                rospy.logerr("MultiGoalActionClient._handle_transition: action_handle=None")
+            elif comm_state == CommState.ACTIVE:
                 if action_handle.simple_state == SimpleGoalState.PENDING:
                     action_handle.simple_state = SimpleGoalState.ACTIVE
                     if action_handle.active_cb:
