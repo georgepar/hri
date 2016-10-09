@@ -124,7 +124,9 @@ class MultiGoalActionServer():
                 self.set_accepted(goal_handle)
                 self.goal_callback(goal_handle)
             else:
-                raise Exception('goal_callback not registered')
+                msg = 'internal_goal_callback: goal_callback not registered'
+                rospy.logerr(msg)
+                raise Exception(msg)
 
     ## @brief Sets the status of the active goal to preempted
     ## @param  result An optional result to send back to any clients of the goal

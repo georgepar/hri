@@ -45,7 +45,9 @@ class Entity(AbstractEntity):
         return str(id(self))
 
     def default_tf_frame_id(self):
-        raise NotImplementedError("Please implement this method")
+        msg = "Entity.default_tf_frame_id: Please implement this method"
+        rospy.logerr(msg)
+        raise NotImplementedError(msg)
 
     def tf_frame_id(self):
         if self.parent is None:
@@ -55,7 +57,9 @@ class Entity(AbstractEntity):
 
     def translation_to(self, target):
         if not isinstance(target, AbstractEntity):
-            raise TypeError("translation_to() parameter target={0} is not a subclass of AbstractEntity".format(target))
+            msg = "translation_to() parameter target={0} is not a subclass of AbstractEntity".format(target)
+            rospy.logerr(msg)
+            raise TypeError(msg)
 
         try:
             (trans, rot) = self.tl.lookupTransform(self.default_tf_frame_id(), target.default_tf_frame_id(), rospy.Time())
@@ -68,7 +72,9 @@ class Entity(AbstractEntity):
 
     def is_infront_of(self, other_entity):
         if not isinstance(other_entity, AbstractEntity):
-            raise TypeError("is_infront_of() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity))
+            msg = "is_infront_of() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity)
+            rospy.logerr(msg)
+            raise TypeError(msg)
 
         origin = Point()
         other = self.translation_to(other_entity)
@@ -76,7 +82,9 @@ class Entity(AbstractEntity):
 
     def is_behind(self, other_entity):
         if not isinstance(other_entity, AbstractEntity):
-            raise TypeError("is_behind() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity))
+            msg = "is_behind() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity)
+            rospy.logerr(msg)
+            raise TypeError(msg)
 
         origin = Point()
         other = self.translation_to(other_entity)
@@ -84,7 +92,9 @@ class Entity(AbstractEntity):
 
     def is_left_of(self, other_entity):
         if not isinstance(other_entity, AbstractEntity):
-            raise TypeError("is_behind() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity))
+            msg = "is_behind() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity)
+            rospy.logerr(msg)
+            raise TypeError(msg)
 
         origin = Point()
         other = self.translation_to(other_entity)
@@ -92,7 +102,9 @@ class Entity(AbstractEntity):
 
     def is_right_of(self, other_entity):
         if not isinstance(other_entity, AbstractEntity):
-            raise TypeError("is_right_of() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity))
+            msg = "is_right_of() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity)
+            rospy.logerr(msg)
+            raise TypeError(msg)
 
         origin = Point()
         other = self.translation_to(other_entity)
@@ -100,7 +112,9 @@ class Entity(AbstractEntity):
 
     def distance_to(self, other_entity):
         if not isinstance(other_entity, AbstractEntity):
-            raise TypeError("distance_to() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity))
+            msg = "distance_to() parameter other_entity={0} is not a subclass of AbstractEntity".format(other_entity)
+            rospy.logerr(msg)
+            raise TypeError(msg)
 
         origin = Point()
         other = self.translation_to(other_entity)
@@ -113,7 +127,9 @@ class Entity(AbstractEntity):
     def wait_for_services(*services):
         for i, service in enumerate(services):
             if not isinstance(service, ServiceProxy):
-                raise TypeError("wait_for_services() parameter action_servers[{0}]={1} is not a ServiceProxy".format(i, service))
+                msg = "wait_for_services() parameter action_servers[{0}]={1} is not a ServiceProxy".format(i, service)
+                rospy.logerr(msg)
+                raise TypeError(msg)
 
             rospy.loginfo("Waiting for service: %s", service.resolved_name)
             service.wait_for_service()
@@ -125,7 +141,9 @@ class Entity(AbstractEntity):
     def wait_for_action_servers(*action_servers):
         for i, action_server in enumerate(action_servers):
             if not isinstance(action_server, (actionlib.SimpleActionClient, MultiGoalActionClient)):
-                raise TypeError("wait_for_action_servers() parameter action_servers[{0}]={1} is not a SimpleActionClient or MultiGoalActionClient".format(i, action_server))
+                msg = "wait_for_action_servers() parameter action_servers[{0}]={1} is not a SimpleActionClient or MultiGoalActionClient".format(i, action_server)
+                rospy.logerr(msg)
+                raise TypeError(msg)
 
             name = action_server.action_client.ns
             rospy.loginfo("Waiting for action server: %s", name)
@@ -139,4 +157,6 @@ class Entity(AbstractEntity):
         """
         make a class and return it
         """
-        raise NotImplementedError('Please implement my make method')
+        msg = 'Entity.make: Please implement my make method'
+        rospy.logerr(msg)
+        raise NotImplementedError(msg)

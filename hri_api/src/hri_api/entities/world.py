@@ -78,16 +78,16 @@ class World():
                 self.entity_id_lookup[entity_id] = entity
                 rospy.logdebug("Added query with entity_id: %s", entity_id)
         else:
-            raise TypeError("add_to_world() parameter entity={0} is not a subclass of Entity or Query".format(entity))
+            rospy.logerr("add_to_world() parameter entity={0} is not a subclass of Entity or Query".format(entity))
 
     def entity_from_entity_id(self, entity_id):
         if not isinstance(entity_id, str):
-            raise TypeError("get_entity_from_entity_id() parameter entity_id={0} is not a int".format(entity_id))
+            rospy.logerr("get_entity_from_entity_id() parameter entity_id={0} is not a int".format(entity_id))
 
         if entity_id in self.entity_id_lookup:
             return self.entity_id_lookup[entity_id]
         else:
-            raise IndexError("get_entity_from_entity_id() parameter entity_id={0} is not in self.entity_id_lookup".format(entity_id))
+            rospy.logerr("get_entity_from_entity_id() parameter entity_id={0} is not in self.entity_id_lookup".format(entity_id))
 
     def tf_frame_service_callback(self, req):
         entity = self.entity_from_entity_id(req.entity_id)

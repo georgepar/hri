@@ -111,7 +111,9 @@ class PerceptionSynthesizer():
         if rospy.has_param('~perception_sources_yaml'):
             path = rospy.get_param('~perception_sources_yaml')
         else:
-            raise Exception('Please specify perception_sources_yaml parameter')
+            msg = 'Please specify perception_sources_yaml parameter'
+            rospy.logerr(msg)
+            raise Exception(msg)
 
         self.sources = PerceptionSynthesizer.parse_yaml(path)
         rospy.loginfo(str(self.sources))
